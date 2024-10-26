@@ -8,7 +8,8 @@ from flwr.common import NDArrays, Scalar, Config
 from flwr.client import NumPyClient
 from model import Net
 import axelrod as axl
-from ipd_shadow_player import ClientShadowPlayer
+from axelrod.action import Action
+from ipd_player import ClientShadowPlayer
 
 class FlowerClient(NumPyClient):
     def __init__(self, trainloader, valloader, ipd_strategy: axl.Player, client_id) -> None:
@@ -67,15 +68,19 @@ class FlowerClient(NumPyClient):
         ipd_history_list_coplays = list()
         match_id = 0
         # get the match results from the configuration as integer
-        if "ipd_history_plays" in config:
+        log(INFO, "Checking properties")
+        if "ipd_history_plays" in config.keys():
             ipd_history_int_plays = config["ipd_history_plays"]
-            ipd_history_list_plays = int_to_bool_list(ipd_history_int_plays)
-        if "ipd_history_coplays" in config:
+            log(INFO, "Play history found: %s", ipd_history_int_plays)
+            ipd_history_list_plays = int_to_action_list(ipd_history_int_plays)
+        if "ipd_history_coplays" in config.keys():
             ipd_history_int_coplays = config["ipd_history_coplays"]
-            ipd_history_list_coplays = int_to_bool_list(ipd_history_int_coplays)
+            log(INFO, "Co-Play history found: %s", ipd_history_int_coplays)
+            ipd_history_list_coplays = int_to_action_list(ipd_history_int_coplays)
             #ipd_history_list_plays_len = len(ipd_history_list_plays)
-        if "match_id" in config:
+        if "match_id" in config.keys():
             match_id = config["match_id"]
+            log(INFO, "Match id found %s", match_id)
             
         # always reset strategy history
         self.ipd_strategy.reset()
@@ -85,7 +90,8 @@ class FlowerClient(NumPyClient):
             if len(ipd_history_list_coplays) == len(ipd_history_list_plays):
                 print("Sanity check on matchup history success")
                 # restore internal history
-                self.ipd_strategy.update_history(ipd_history_list_plays, ipd_history_list_coplays)
+                #self.ipd_strategy.update_history(ipd_history_list_plays, ipd_history_list_coplays)
+                self.ipd_strategy._history.extend(ipd_history_list_plays, ipd_history_list_coplays)
             else:
                 print("Sanity check on matchup history failure")
         else:
@@ -96,8 +102,8 @@ class FlowerClient(NumPyClient):
         
         if len(ipd_history_list_plays) > 0:
             # assign flipped plays / coplays
-            shadow_opponent.update_history(ipd_history_list_coplays, ipd_history_list_plays)
-    
+            #shadow_opponent.update_history(ipd_history_list_coplays, ipd_history_list_plays)
+            shadow_opponent._history.extend(ipd_history_list_coplays, ipd_history_list_plays)
         # evaluate next move based on given history
         next_action = self.ipd_strategy.strategy(opponent=shadow_opponent)
         
@@ -148,6 +154,15 @@ def int_to_bool_list(n):
     bool_list = [bool(int(digit)) for digit in binary_rep]
     
     return bool_list
+
+def int_to_action_list(n):
+    # Convert the integer to its binary representation, remove the '0b' prefix
+    binary_rep = bin(n)[2:]
+    
+    # Convert each digit to action list
+    action_list = [(Action.C if bool(int(digit)) else Action.D) for digit in binary_rep]
+    
+    return action_list
 
 def append_bool_to_msb(n, new_bool):
     # Find the number of bits in the integer

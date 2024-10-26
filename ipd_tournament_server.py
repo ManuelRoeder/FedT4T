@@ -5,11 +5,13 @@ from flwr.common.logger import log
 from flwr.server.strategy import Strategy
 from flwr.server import Server
 import concurrent.futures
+import copy
 
 from typing import Optional, Union
 
 from flwr.common import (
     FitRes,
+    FitIns,
     Parameters,
     Scalar,
     GetPropertiesIns,
@@ -60,7 +62,7 @@ class Ipd_TournamentServer(Server):
         )
         
         if server_round > 1:
-            self.ipd_matchmaking(client_instructions, max_workers=self.max_workers, timeout=timeout, server_round=server_round)
+            client_instructions = self.ipd_matchmaking(client_instructions, max_workers=self.max_workers, timeout=timeout, server_round=server_round)
 
         if not client_instructions:
             log(INFO, "configure_fit: no clients selected, cancel")
@@ -86,7 +88,8 @@ class Ipd_TournamentServer(Server):
             len(failures),
         )
         
-        self.resolve_ipd_matchmaking(results)
+        if server_round > 1:
+            self.resolve_ipd_matchmaking(results)
 
         # Aggregate training results
         aggregated_result: tuple[
@@ -98,22 +101,15 @@ class Ipd_TournamentServer(Server):
         return parameters_aggregated, metrics_aggregated, (results, failures)
     
     def ipd_matchmaking(self, client_instructions, max_workers, timeout, server_round):
-        # collect clients 
+        # collect client list async
         participating_client_lst = get_properties_async(client_instructions=client_instructions,
                                                         max_workers=max_workers,
                                                         timeout=timeout,
                                                         group_id=server_round)
-        '''
-        for idx, client in enumerate(client_instructions):
-            conf = {'client_id': 0, 'strategy': ''}
-            props = GetPropertiesIns(config=conf)
-            client_prob_dict = client[0].get_properties(props, timeout=timeout, group_id=server_round)
-            participating_client_lst.append((idx, client_prob_dict.properties))
-        '''
-        
-        
         # shuffle list and pop last two
         random.shuffle(participating_client_lst)
+        
+        new_client_instructions = [(x, copy.deepcopy(y)) for x, y in client_instructions]
         
         while len(participating_client_lst) > 1:
             # check client participation in previous round
@@ -127,27 +123,28 @@ class Ipd_TournamentServer(Server):
             # calc unique match hash
             hash_key = str(cantor_pairing(sorted_x, sorted_y))
             # obtain history
-            if hash_key in self.matchmaking_dict:
+            log(INFO, "pairing input: %s and %s - output %s", sorted_x, sorted_y, hash_key)
+            if hash_key in self.matchmaking_dict.keys():
                 matchup_1, matchup_2 = self.matchmaking_dict[hash_key]
                 # integrate matchups in FitRes of client A
                 {"ipd_history_plays": 0, "ipd_history_coplays": 0}
                 # fix flip by sort operation
                 if sorted_x == int(player_1[1]["client_id"]):
-                    client_instructions[player_1[0]][1].config["ipd_history_plays"] = matchup_1
-                    client_instructions[player_1[0]][1].config["ipd_history_coplays"] = matchup_2
+                    new_client_instructions[player_1[0]][1].config["ipd_history_plays"] = matchup_1
+                    new_client_instructions[player_1[0]][1].config["ipd_history_coplays"] = matchup_2
                     # integrate matchups in FitRes of client B
-                    client_instructions[player_2[0]][1].config["ipd_history_plays"] = matchup_2
-                    client_instructions[player_2[0]][1].config["ipd_history_coplays"] = matchup_1
+                    new_client_instructions[player_2[0]][1].config["ipd_history_plays"] = matchup_2
+                    new_client_instructions[player_2[0]][1].config["ipd_history_coplays"] = matchup_1
                 else:
-                    client_instructions[player_1[0]][1].config["ipd_history_plays"] = matchup_2
-                    client_instructions[player_1[0]][1].config["ipd_history_coplays"] = matchup_1
+                    new_client_instructions[player_1[0]][1].config["ipd_history_plays"] = matchup_2
+                    new_client_instructions[player_1[0]][1].config["ipd_history_coplays"] = matchup_1
                     # integrate matchups in FitRes of client B
-                    client_instructions[player_2[0]][1].config["ipd_history_plays"] = matchup_1
-                    client_instructions[player_2[0]][1].config["ipd_history_coplays"] = matchup_2
+                    new_client_instructions[player_2[0]][1].config["ipd_history_plays"] = matchup_1
+                    new_client_instructions[player_2[0]][1].config["ipd_history_coplays"] = matchup_2
                 # attach match_id
-            client_instructions[player_1[0]][1].config["match_id"] = hash_key
-            client_instructions[player_2[0]][1].config["match_id"] = hash_key
-            
+            new_client_instructions[player_1[0]][1].config["match_id"] = hash_key
+            new_client_instructions[player_2[0]][1].config["match_id"] = hash_key
+        return new_client_instructions
             
           
     def resolve_ipd_matchmaking(self, results):
@@ -180,7 +177,7 @@ class Ipd_TournamentServer(Server):
                     match_id = metrics_1["match_id"]
                     c1_id = int(metrics_1["client_id"])
                     c2_id = int(metrics_2["client_id"])
-                    if match_id in self.matchmaking_dict:
+                    if match_id in self.matchmaking_dict.keys():
                          # update entries with match result
                         history_c1, history_c2 = self.matchmaking_dict[match_id]
                     else:
@@ -215,14 +212,6 @@ def get_properties_async(
         group_id: int,
     ) -> list:
         """Refine parameters concurrently on all selected clients."""
-        #participating_client_lst = list()
-        '''
-        for idx, client in enumerate(client_instructions):
-            conf = {'client_id': 0, 'strategy': ''}
-            props = GetPropertiesIns(config=conf)
-            client_prob_dict = client[0].get_properties(props, timeout=timeout, group_id=server_round)
-            participating_client_lst.append((idx, client_prob_dict.properties))
-            '''
         conf = {'client_id': 0, 'strategy': ''}
         props = GetPropertiesIns(config=conf)
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:

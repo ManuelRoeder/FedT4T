@@ -25,6 +25,9 @@ import axelrod as axl
 from ipd_tournament_server import Ipd_TournamentServer
 from flwr.server.client_manager import SimpleClientManager
 
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 # NUM_PARTITIONS = 20 # determined by number of strategies
 num_rounds = 10
 SEED = 42
@@ -140,7 +143,7 @@ def client_fn(context: Context):
     client_ipd_strat = client_strategies[partition_id]
     client_ipd_strat.set_seed(SEED)
 
-    print("Init client with strategy " + client_ipd_strat.name + " with partition_id " + str(partition_id))
+    print("Init client(" + str(partition_id) + ") with strategy " + client_ipd_strat.name)
 
     return FlowerClient(trainloader=trainloader,
                         valloader=testloader,
