@@ -23,6 +23,7 @@ from flwr.server.client_manager import SimpleClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.server import fit_clients
 
+USE_CANTOR_PAIRING = False
 
 FitResultsAndFailures = tuple[
     list[tuple[ClientProxy, FitRes]],
@@ -118,10 +119,8 @@ class Ipd_TournamentServer(Server):
             # create Key
             id_p1 = int(player_1[1]["client_id"])
             id_p2 = int(player_2[1]["client_id"])
-            # sort
-            sorted_x, sorted_y = sorted([id_p1, id_p2])
             # calc unique match hash
-            hash_key = str(cantor_pairing(sorted_x, sorted_y))
+            sorted_x, sorted_y, hash_key = generate_hash(id_p1, id_p2)
             # obtain history
             log(INFO, "pairing input: %s and %s - output %s", sorted_x, sorted_y, hash_key)
             if hash_key in self.matchmaking_dict.keys():
@@ -259,6 +258,23 @@ def _handle_finished_future_after_get_properties(
     # Not successful, client returned a result where the status code is not OK
     failures.append(result)
 
+
+def generate_hash(x_id, y_id):
+    sorted_x, sorted_y = sorted([x_id, y_id])
+    if USE_CANTOR_PAIRING:
+        return sorted_x, sorted_y, str(cantor_pairing(sorted_x, sorted_y))
+    else:
+        # simple concat str
+        hash_str = str(sorted_x) + "_" + str(sorted_y)
+        return sorted_x, sorted_y, hash_str
+
+def decode_hash(hash_str):
+    if USE_CANTOR_PAIRING:
+        x, y = reverse_cantor_pairing(hash_str)
+        return str(x), str(y)
+    else:
+        str_lst = hash_str.split("_")
+        return str_lst[0], str_lst[1]
 
 def cantor_pairing(x, y):
     """Combine two non-negative integers into a single hash key using Cantor's pairing function."""

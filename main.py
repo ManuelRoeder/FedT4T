@@ -29,7 +29,7 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # NUM_PARTITIONS = 20 # determined by number of strategies
-num_rounds = 10
+num_rounds = 20
 SEED = 42
 plot_label_distribution_over_clients = False
 strategy_mem_depth = 1
