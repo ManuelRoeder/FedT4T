@@ -23,7 +23,7 @@ from flwr.server.client_manager import SimpleClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.server import fit_clients
 
-USE_CANTOR_PAIRING = False
+USE_CANTOR_PAIRING = False # use cantor hashing or free-text
 
 FitResultsAndFailures = tuple[
     list[tuple[ClientProxy, FitRes]],

@@ -1,3 +1,7 @@
+import copy
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
 import torch
 from torch.utils.data import DataLoader
 from torchvision.transforms import ToTensor, Normalize, Compose
@@ -24,15 +28,17 @@ from flwr.simulation import run_simulation
 import axelrod as axl
 from ipd_tournament_server import Ipd_TournamentServer
 from flwr.server.client_manager import SimpleClientManager
+import util
+from axelrod.action import Action
+from ipd_player import ResourceAwareMemOnePlayer, RandomMemOnePlayer
 
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # NUM_PARTITIONS = 20 # determined by number of strategies
 num_rounds = 20
 SEED = 42
 plot_label_distribution_over_clients = False
 strategy_mem_depth = 1
+FL_STRATEGY_SUBSAMPLE = 1.0
 
 def sow_seed(seed):
     torch.manual_seed(seed)
@@ -160,7 +166,7 @@ def server_fn(context: Context):
 
     # Define the strategy
     strategy = FedAvg(
-        fraction_fit=0.5,  # 50% clients sampled each round to do fit()
+        fraction_fit=FL_STRATEGY_SUBSAMPLE,  # 50% clients sampled each round to do fit()
         fraction_evaluate=0.1,  # 10% clients sample each round to do evaluate()
         #min_fit_clients= 16,
         evaluate_metrics_aggregation_fn=weighted_average,  # callback defined earlier
@@ -185,12 +191,46 @@ def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
     # Aggregate and return custom metric (weighted average)
     return {"accuracy": sum(accuracies) / sum(examples)}
 
+def get_client_strategies(exp_str, mem_depth=1, resource_awareness=False):
+    client_strategies = list()
+    if exp_str == "axelrod_ordinary":
+        # ordinary axelrod set filtered by mem depth 1
+        client_strategies = [s() for s  in axl.filtered_strategies(filterset={'memory_depth': mem_depth}, strategies=axl.ordinary_strategies)]
+    elif exp_str == "axelrod_diverse":
+        client_strategies = [axl.GTFT(p=0.0), # classical T4T
+                             axl.StochasticWSLS(0), # Pavlov
+                             #axl.Grudger(), #  Grim Trigger,
+                             #axl.SoftGrudger(), # Soft Grim
+                             axl.SoftJoss(0), # Cooperator
+                             axl.MemoryOnePlayer((0, 0, 0, 0), Action.D), # always defect
+                             axl.GTFT(p=0.9), # Stochastic T4T 
+                             axl.GTFT(p=0.75), # tit-for-tat but coopertes with prob. p after opponent defection
+                             #axl.ForgivingTitForTat(),
+                             ]
+    elif exp_str == "axelrod_stochastic":
+        # axelrod set filtered by mem depth 1 and stochastic property
+        client_strategies = [s() for s in axl.filtered_strategies(filterset={'memory_depth': mem_depth, 'stochastic': True}, strategies=axl.all_strategies)]
+    
+    # extend w random
+    #random_player = RandomMemOnePlayer()
+    #client_strategies.append(random_player)
+    
+    if resource_awareness:
+        # remove all players that are not derived from MemoryOne
+        selected_strategies = list()
+        for strategy in client_strategies:
+            if isinstance(strategy, axl.MemoryOnePlayer):
+                selected_strategies.append(ResourceAwareMemOnePlayer(copy.deepcopy(strategy), initial_resource_level=util.ResourceLevel.LOW))
+                selected_strategies.append(ResourceAwareMemOnePlayer(copy.deepcopy(strategy), initial_resource_level=util.ResourceLevel.MODERATE))
+                selected_strategies.append(ResourceAwareMemOnePlayer(copy.deepcopy(strategy), initial_resource_level=util.ResourceLevel.FULL))
+        return selected_strategies
+                
+    return client_strategies
 ###################### MAIN TRACK ######################
 
 # initialize strategies with memory_depth eq. 1
-client_strategies = [s() for s  in axl.filtered_strategies(filterset={'memory_depth': strategy_mem_depth}, strategies=axl.ordinary_strategies)]
-# extend to random
-client_strategies.append(axl.Random())
+client_strategies = get_client_strategies("axelrod_diverse", mem_depth=strategy_mem_depth, resource_awareness=True)
+
 # mix list
 random.shuffle(client_strategies)
 # create partitions for each FL client
