@@ -1,4 +1,5 @@
 from enum import Enum
+from axelrod.action import Action
 
 class ResourceLevel(float, Enum):
     NONE = -1.0
@@ -74,6 +75,17 @@ def append_bool_to_msb(n, new_bool):
         n += 1 << num_bits  # Add 1 at the MSB position
     
     return n
+
+
+def actions_to_string(actions):
+    # Convert each Action to its name (or value, depending on your preference)
+    return ''.join(action.name for action in actions)
         
     
-        
+def string_to_actions(action_str):
+    # Map each character in the string to the corresponding Action enum
+    action_map = {
+        'D': Action.D,
+        'C': Action.C
+    }
+    return [action_map[char] for char in action_str]

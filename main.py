@@ -34,11 +34,11 @@ from ipd_player import ResourceAwareMemOnePlayer, RandomMemOnePlayer
 
 
 # NUM_PARTITIONS = 20 # determined by number of strategies
-num_rounds = 20
+#num_rounds = 50 # determined dynamically
 SEED = 42
 plot_label_distribution_over_clients = False
 strategy_mem_depth = 1
-FL_STRATEGY_SUBSAMPLE = 1.0
+FL_STRATEGY_SUBSAMPLE = 0.75
 
 def sow_seed(seed):
     torch.manual_seed(seed)
@@ -79,7 +79,7 @@ def get_mnist_dataloaders(mnist_dataset, batch_size: int):
 
     # Construct PyTorch dataloaders
     trainloader = DataLoader(mnist_train, batch_size=batch_size, shuffle=True)
-    testloader = DataLoader(mnist_test, batch_size=batch_size)
+    testloader = DataLoader(mnist_test, batch_size=batch_size*2)
     return trainloader, testloader
 
 def train(net, trainloader, optimizer, epochs):
@@ -112,6 +112,10 @@ def get_params(model):
     """Extract model parameters as a list of NumPy arrays."""
     return [val.cpu().numpy() for _, val in model.state_dict().items()]
 
+def get_number_of_round_with_avg_meetups(avg, N, subsample_fraction):
+    return int((avg * (N - 1) / subsample_fraction))
+    
+
 def run_centralised(
     trainloader, testloader, epochs: int, lr: float, momentum: float = 0.9
 ):
@@ -143,7 +147,7 @@ def client_fn(context: Context):
 
     # Let's use the function defined earlier to construct the dataloaders
     # and apply the dataset transformations
-    trainloader, testloader = get_mnist_dataloaders(partition_train_val, batch_size=32)
+    trainloader, testloader = get_mnist_dataloaders(partition_train_val, batch_size=10)
     
     # Pop last element from list and set seed
     client_ipd_strat = client_strategies[partition_id]
@@ -173,6 +177,10 @@ def server_fn(context: Context):
         initial_parameters=global_model_init,  # initialised global model
     )
     
+    # calculate the number of rounds based on the subsamüling strategy
+    avg = 5
+    num_rounds = get_number_of_round_with_avg_meetups(avg, NUM_PARTITIONS, FL_STRATEGY_SUBSAMPLE)
+    print("Min. number of rounds to have on average " + str(avg) + " matches with " + str(NUM_PARTITIONS) + " participating clients and a subsampling rate of " + str(FL_STRATEGY_SUBSAMPLE) + " is "  +  str(num_rounds))
     # Iterated Prisoners Dilemma Tournament Server
     ipd_tournament_server= Ipd_TournamentServer(client_manager=SimpleClientManager(), strategy=strategy, num_rounds=num_rounds)
 

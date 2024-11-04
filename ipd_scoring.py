@@ -1,3 +1,4 @@
+import os
 import matplotlib.pyplot as plt
 import util
 import pandas as pd
@@ -391,3 +392,227 @@ def plot_strategy_total_scores_over_rounds(ipd_scoreboard_dict):
     plt.grid(True)
     plt.tight_layout()
     plt.show()
+    
+    
+    
+def plot_strategy_score_differences_matrix(ipd_scoreboard_dict):
+    """
+    Plots a confusion matrix showing the score differences (sum_score1 - sum_score2)
+    for each strategy pair.
+
+    Each cell displays the difference in total scores between two strategies across all interactions.
+    Positive values indicate that the client strategy performed better, negative values indicate that the opponent strategy performed better.
+    """
+    # Dictionary to store accumulated scores and interaction counts between unique strategy pairs
+    # Key: (client_label, opponent_label)
+    # Value: [sum_client_scores, sum_opponent_scores]
+    interaction_data = {}
+
+    # Iterate through each client to collect scores for unique interactions
+    for client_id, rounds in ipd_scoreboard_dict.items():
+        for round_data in rounds:
+            # round_data format:
+            # (server_round, match_id, opponent_id, play, coplay, payoff, ipd_strategy, res_level)
+            match_id = round_data[1]
+            client_label = f"{round_data[6]} | {round_data[7]}"  # Client's strategy and resource level
+            opponent_id = round_data[2]
+            client_payoff = round_data[5]  # Client's payoff for this round
+
+            # Ensure the opponent exists and retrieve opponent data for the same match
+            if opponent_id in ipd_scoreboard_dict:
+                # Find the opponent's data within the same match
+                opponent_round = next((r for r in ipd_scoreboard_dict[opponent_id] if r[1] == match_id), None)
+                if opponent_round:
+                    opponent_label = f"{opponent_round[6]} | {opponent_round[7]}"
+                    opponent_payoff = opponent_round[5]  # Opponent's payoff for this round
+
+                    # Create a label pair
+                    label_pair = (client_label, opponent_label)
+
+                    # Initialize or update the interaction data
+                    if label_pair not in interaction_data:
+                        interaction_data[label_pair] = [client_payoff, opponent_payoff]
+                    else:
+                        interaction_data[label_pair][0] += client_payoff
+                        interaction_data[label_pair][1] += opponent_payoff
+
+    # Extract unique labels
+    unique_labels = sorted(set(label for pair in interaction_data.keys() for label in pair))
+
+    # Create a DataFrame to store the score differences
+    matrix = pd.DataFrame(0.0, index=unique_labels, columns=unique_labels)
+
+    # Fill the matrix with the score differences
+    for (client_label, opponent_label), (sum_score1, sum_score2) in interaction_data.items():
+        score_difference = sum_score1 - sum_score2
+        matrix.at[client_label, opponent_label] = score_difference
+
+    # Plot the confusion matrix
+    plt.figure(figsize=(12, 10))
+    sns.heatmap(matrix, annot=True, fmt=".1f", cmap="coolwarm", center=0, cbar=True)
+    plt.title("Strategy Score Differences Matrix (Client Score - Opponent Score)")
+    plt.xlabel("Opponent Strategy")
+    plt.ylabel("Client Strategy")
+    plt.xticks(rotation=45, ha="right")
+    plt.yticks(rotation=0)
+    plt.tight_layout()
+    plt.show()
+    
+    
+    
+def save_strategy_score_differences_matrix(ipd_scoreboard_dict, plot_directory='plots', filename='strategy_score_differences_matrix.png'):
+    """
+    Calculates the score differences (sum_score1 - sum_score2) for each strategy pair and saves the plot.
+
+    Parameters:
+    - plot_directory (str): The directory where the plot image will be saved.
+    - filename (str): The filename for the saved plot image.
+
+    The plot will be saved in the specified directory with the given filename.
+    """
+    # Ensure the plot directory exists
+    if not os.path.exists(plot_directory):
+        os.makedirs(plot_directory)
+
+    # Dictionary to store accumulated scores between unique strategy pairs
+    interaction_data = {}
+
+    # Iterate through each client to collect scores for unique interactions
+    for client_id, rounds in ipd_scoreboard_dict.items():
+        for round_data in rounds:
+            # round_data format:
+            # (server_round, match_id, opponent_id, play, coplay, payoff, ipd_strategy, res_level)
+            match_id = round_data[1]
+            client_label = f"{round_data[6]} | {round_data[7]}"  # Client's strategy and resource level
+            opponent_id = round_data[2]
+            client_payoff = round_data[5]  # Client's payoff for this round
+
+            # Ensure the opponent exists and retrieve opponent data for the same match
+            if opponent_id in ipd_scoreboard_dict:
+                # Find the opponent's data within the same match
+                opponent_round = next((r for r in ipd_scoreboard_dict[opponent_id] if r[1] == match_id), None)
+                if opponent_round:
+                    opponent_label = f"{opponent_round[6]} | {opponent_round[7]}"
+                    opponent_payoff = opponent_round[5]  # Opponent's payoff for this round
+
+                    # Create a label pair
+                    label_pair = (client_label, opponent_label)
+
+                    # Initialize or update the interaction data
+                    if label_pair not in interaction_data:
+                        interaction_data[label_pair] = [client_payoff, opponent_payoff]
+                    else:
+                        interaction_data[label_pair][0] += client_payoff
+                        interaction_data[label_pair][1] += opponent_payoff
+
+    # Extract unique labels
+    unique_labels = sorted(set(label for pair in interaction_data.keys() for label in pair))
+
+    # Create a DataFrame to store the score differences
+    matrix = pd.DataFrame(0.0, index=unique_labels, columns=unique_labels)
+
+    # Fill the matrix with the score differences
+    for (client_label, opponent_label), (sum_score1, sum_score2) in interaction_data.items():
+        score_difference = sum_score1 - sum_score2
+        matrix.at[client_label, opponent_label] = score_difference
+
+    # Plot the confusion matrix
+    plt.figure(figsize=(12, 10))
+    sns.heatmap(
+        matrix,
+        annot=True,
+        fmt=".1f",
+        cmap="coolwarm",
+        center=0,
+        cbar=True,
+        linewidths=0.5,
+        linecolor='gray'
+    )
+    plt.title("Strategy Score Differences Matrix (Client Score - Opponent Score)")
+    plt.xlabel("Opponent Strategy")
+    plt.ylabel("Client Strategy")
+    plt.xticks(rotation=45, ha="right")
+    plt.yticks(rotation=0)
+    plt.tight_layout()
+
+    # Save the plot to the specified directory with the given filename
+    plot_path = os.path.join(plot_directory, filename)
+    plt.savefig(plot_path)
+    plt.close()  # Close the figure to free memory
+    
+    
+def save_strategy_total_scores_over_rounds(ipd_scoreboard_dict, plot_directory='plots', filename='strategy_total_scores_over_rounds.png'):
+    """
+    Plots the cumulative total scores obtained by each strategy over the server rounds and saves the plot to a file.
+
+    Parameters:
+    - plot_directory (str): The directory where the plot image will be saved.
+    - filename (str): The filename for the saved plot image.
+
+    The plot will be saved in the specified directory with the given filename.
+    """
+    # Ensure the plot directory exists
+    if not os.path.exists(plot_directory):
+        os.makedirs(plot_directory)
+
+    # Collect all unique server rounds and strategies
+    all_rounds = set()
+    strategies = set()
+    data_list = []
+
+    # Gather data from ipd_scoreboard_dict
+    for client_id, rounds in ipd_scoreboard_dict.items():
+        for round_data in rounds:
+            server_round = round_data[0]
+            strategy_label = f"{round_data[6]} | {round_data[7]}"  # Strategy name | Resource level
+            payoff = round_data[5]  # Payoff
+
+            all_rounds.add(server_round)
+            strategies.add(strategy_label)
+            data_list.append((server_round, strategy_label, payoff))
+
+    # Sort the server rounds
+    sorted_rounds = sorted(all_rounds)
+
+    # Initialize cumulative scores and totals for each strategy
+    cumulative_scores_per_strategy = {strategy: [] for strategy in strategies}
+    cumulative_totals = {strategy: 0 for strategy in strategies}
+
+    # Group data by server round
+    data_by_round = defaultdict(list)
+    for server_round, strategy_label, payoff in data_list:
+        data_by_round[server_round].append((strategy_label, payoff))
+
+    # Iterate over each server round in order
+    for server_round in sorted_rounds:
+        # Append current cumulative totals to the lists
+        for strategy in strategies:
+            cumulative_scores_per_strategy[strategy].append(cumulative_totals[strategy])
+
+        # Update cumulative totals with payoffs from the current round
+        for strategy_label, payoff in data_by_round.get(server_round, []):
+            cumulative_totals[strategy_label] += payoff
+
+    # Append the final cumulative totals after the last round
+    for strategy in strategies:
+        cumulative_scores_per_strategy[strategy].append(cumulative_totals[strategy])
+
+    # Extend the rounds list to match the length of cumulative scores lists
+    extended_rounds = sorted_rounds + [sorted_rounds[-1] + 1]
+
+    # Plot the cumulative total scores over rounds for each strategy
+    plt.figure(figsize=(12, 8))
+    for strategy, cumulative_scores in cumulative_scores_per_strategy.items():
+        plt.plot(extended_rounds, cumulative_scores, label=strategy)
+
+    plt.title("Cumulative Total Scores of Strategies Over Server Rounds")
+    plt.xlabel("Server Round")
+    plt.ylabel("Cumulative Total Score")
+    plt.legend(title="Strategy")
+    plt.grid(True)
+    plt.tight_layout()
+
+    # Save the plot to the specified directory with the given filename
+    plot_path = os.path.join(plot_directory, filename)
+    plt.savefig(plot_path)
+    plt.close()  # Close the figure to free memory

@@ -7,6 +7,7 @@ from flwr.server import Server
 import concurrent.futures
 import copy
 from typing import Optional, Union
+from axelrod.action import Action
 
 from flwr.common import (
     FitRes,
@@ -22,8 +23,8 @@ from flwr.server.client_manager import SimpleClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.server import fit_clients
 
-from ipd_scoring import  plot_unique_strategy_confusion_matrix, plot_strategy_total_scores_over_rounds, update_scoreboard, get_ipd_score, format_ranked_payoffs_for_logging,plot_strategy_scores_matrix
-from util import append_bool_to_msb, generate_hash
+from ipd_scoring import  save_strategy_score_differences_matrix, save_strategy_total_scores_over_rounds, update_scoreboard, get_ipd_score, format_ranked_payoffs_for_logging,plot_strategy_scores_matrix
+from util import append_bool_to_msb, generate_hash, actions_to_string
 
 USE_CANTOR_PAIRING = False # use cantor hashing or free-text transmission of match id
 
@@ -100,10 +101,13 @@ class Ipd_TournamentServer(Server):
             self.resolve_ipd_matchmaking(results, server_round)
             
         # check some stats
-        if (len(self.ipd_scoreboard_dict) > 0) and (server_round % 5 == 0):
-            log(INFO, format_ranked_payoffs_for_logging(self.ipd_scoreboard_dict))
+        log(INFO, format_ranked_payoffs_for_logging(self.ipd_scoreboard_dict))
+        
+        if (len(self.ipd_scoreboard_dict) > 0) and (server_round % 4 == 0):
             #plot_unique_strategy_confusion_matrix(self.ipd_scoreboard_dict)
-            plot_strategy_total_scores_over_rounds(self.ipd_scoreboard_dict)
+            #plot_strategy_score_differences_matrix(self.ipd_scoreboard_dict)
+            save_strategy_score_differences_matrix(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_confusion_matrix.png")
+            save_strategy_total_scores_over_rounds(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_scoring_plot.png")
 
         # Aggregate training results
         aggregated_result: tuple[
@@ -113,6 +117,7 @@ class Ipd_TournamentServer(Server):
 
         parameters_aggregated, metrics_aggregated = aggregated_result
         return parameters_aggregated, metrics_aggregated, (results, failures)
+    
     
     def ipd_matchmaking(self, client_instructions, max_workers, timeout, server_round):
         # collect client list async
@@ -142,18 +147,18 @@ class Ipd_TournamentServer(Server):
                 {"ipd_history_plays": 0, "ipd_history_coplays": 0}
                 # fix flip by sort operation
                 if sorted_x == int(player_1[1]["client_id"]):
-                    new_client_instructions[player_1[0]][1].config["ipd_history_plays"] = matchup_1
-                    new_client_instructions[player_1[0]][1].config["ipd_history_coplays"] = matchup_2
+                    new_client_instructions[player_1[0]][1].config["ipd_history_plays"] = actions_to_string(matchup_1) # convert action list to string
+                    new_client_instructions[player_1[0]][1].config["ipd_history_coplays"] = actions_to_string(matchup_2)
                     # integrate matchups in FitRes of client B
-                    new_client_instructions[player_2[0]][1].config["ipd_history_plays"] = matchup_2
-                    new_client_instructions[player_2[0]][1].config["ipd_history_coplays"] = matchup_1
+                    new_client_instructions[player_2[0]][1].config["ipd_history_plays"] = actions_to_string(matchup_2)
+                    new_client_instructions[player_2[0]][1].config["ipd_history_coplays"] = actions_to_string(matchup_1)
                 else:
-                    new_client_instructions[player_1[0]][1].config["ipd_history_plays"] = matchup_2
-                    new_client_instructions[player_1[0]][1].config["ipd_history_coplays"] = matchup_1
+                    new_client_instructions[player_1[0]][1].config["ipd_history_plays"] = actions_to_string(matchup_2)
+                    new_client_instructions[player_1[0]][1].config["ipd_history_coplays"] = actions_to_string(matchup_1)
                     # integrate matchups in FitRes of client B
-                    new_client_instructions[player_2[0]][1].config["ipd_history_plays"] = matchup_1
-                    new_client_instructions[player_2[0]][1].config["ipd_history_coplays"] = matchup_2
-                # attach match_id
+                    new_client_instructions[player_2[0]][1].config["ipd_history_plays"] = actions_to_string(matchup_1)
+                    new_client_instructions[player_2[0]][1].config["ipd_history_coplays"] = actions_to_string(matchup_2)
+            # attach match_id
             new_client_instructions[player_1[0]][1].config["match_id"] = hash_key
             new_client_instructions[player_2[0]][1].config["match_id"] = hash_key
         return new_client_instructions
@@ -182,9 +187,10 @@ class Ipd_TournamentServer(Server):
                 #print(f"Duplicate match_id {match_id} found with entries:")
                 log(INFO, "Duplicate match_ids found")
                 for i in range(len(entries) - 1):
+                    idx_lower_client_id, idx_higher_client_id = self.findMetricIdx(entries)
                     # extract results
-                    metrics_1, num_examples_1 = entries[i]
-                    metrics_2, num_examples_2 = entries[i + 1]
+                    metrics_1, num_examples_1 = entries[idx_lower_client_id]
+                    metrics_2, num_examples_2 = entries[idx_higher_client_id]
                     # fetch server history by match_id
                     match_id = metrics_1["match_id"]
                     c1_id = int(metrics_1["client_id"])
@@ -194,17 +200,14 @@ class Ipd_TournamentServer(Server):
                         history_c1, history_c2 = self.matchmaking_dict[match_id]
                     else:
                         # create new entry
-                        history_c1 = 0
-                        history_c2 = 0
-                        
-                    if c1_id < c2_id:
-                        action_c1 = (True if num_examples_1 > 0 else False)
-                        action_c2 = (True if num_examples_2 > 0 else False)
-                    else:
-                        action_c1 = (True if num_examples_2 > 0 else False)
-                        action_c2 = (True if num_examples_1 > 0 else False)
-                    history_c1 = append_bool_to_msb(history_c1, action_c1)
-                    history_c2 = append_bool_to_msb(history_c2, action_c2)
+                        history_c1 = list()
+                        history_c2 = list()
+                    
+                    # Update scoring action
+                    action_c1 = (True if num_examples_1 > 0 else False)
+                    action_c2 = (True if num_examples_2 > 0 else False)
+                    history_c1.append(Action.C if action_c1 else Action.D)
+                    history_c2.append(Action.C if action_c2 else Action.D)
                     # get the score for each client
                     score_c1, score_c2 = get_ipd_score(action_c1, action_c2)
                     # update scoreboard with client data
@@ -218,6 +221,12 @@ class Ipd_TournamentServer(Server):
                 log(INFO, "Single match_id found")
 
 
+    def findMetricIdx(self, entries):
+        """ Returns a tuple of entry indices, with the lower client id in the first spot"""
+        if int(entries[0][0]["client_id"]) < int(entries[1][0]["client_id"]):
+            return 0, 1
+        else:
+            return 1, 0
                 
 # async commuinication handling to get client properties, dont touch anymore!
 def get_properties(
