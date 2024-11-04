@@ -9,7 +9,8 @@ from flwr.client import NumPyClient
 from model import Net
 import axelrod as axl
 from axelrod.action import Action
-from ipd_player import ClientShadowPlayer
+from ipd_player import ClientShadowPlayer, ResourceAwareMemOnePlayer
+import util
 
 class FlowerClient(NumPyClient):
     def __init__(self, trainloader, valloader, ipd_strategy: axl.Player, client_id) -> None:
@@ -33,7 +34,12 @@ class FlowerClient(NumPyClient):
         match_id, cooperate = self.evaluate_pd(config)
         
         # prepare return meta data
-        ret_dict = {"match_id": match_id, "client_id": self.client_id, "strategy_name": self.ipd_strategy.name}
+        # check client resource level
+        res_level = util.ResourceLevel.NONE
+        if isinstance(self.ipd_strategy, ResourceAwareMemOnePlayer):
+            res_level = self.ipd_strategy.get_resource_level()
+            
+        ret_dict = {"match_id": match_id, "client_id": self.client_id, "ipd_strategy_name": self.ipd_strategy.name, "resource_level": res_level.value}
         
         if cooperate:
             log(INFO, "Client Id %s fit(): COOPERATE action", self.client_id)

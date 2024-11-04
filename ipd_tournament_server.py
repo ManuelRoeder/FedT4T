@@ -6,7 +6,6 @@ from flwr.server.strategy import Strategy
 from flwr.server import Server
 import concurrent.futures
 import copy
-
 from typing import Optional, Union
 
 from flwr.common import (
@@ -23,7 +22,11 @@ from flwr.server.client_manager import SimpleClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.server import fit_clients
 
-USE_CANTOR_PAIRING = False # use cantor hashing or free-text
+from ipd_scoring import  plot_unique_strategy_confusion_matrix, plot_strategy_total_scores_over_rounds, update_scoreboard, get_ipd_score, format_ranked_payoffs_for_logging,plot_strategy_scores_matrix
+from util import append_bool_to_msb, generate_hash
+
+USE_CANTOR_PAIRING = False # use cantor hashing or free-text transmission of match id
+
 
 FitResultsAndFailures = tuple[
     list[tuple[ClientProxy, FitRes]],
@@ -35,6 +38,7 @@ class Ipd_ClientManager(SimpleClientManager):
          super().__init__()
          log(INFO, "Starting Ipd client manager")
          self.matchmaking_dict = dict()
+         
 
 
 class Ipd_TournamentServer(Server):
@@ -43,9 +47,12 @@ class Ipd_TournamentServer(Server):
         *,
         client_manager: Ipd_ClientManager,
         strategy: Optional[Strategy] = None,
+        num_rounds: int
     ) -> None:
         super().__init__(client_manager=client_manager, strategy=strategy)
         self.matchmaking_dict = dict()
+        self.ipd_scoreboard_dict = dict()
+        self.num_fl_rounds = num_rounds
         
     def fit_round(
         self,
@@ -90,7 +97,13 @@ class Ipd_TournamentServer(Server):
         )
         
         if server_round > 1:
-            self.resolve_ipd_matchmaking(results)
+            self.resolve_ipd_matchmaking(results, server_round)
+            
+        # check some stats
+        if (len(self.ipd_scoreboard_dict) > 0) and (server_round % 5 == 0):
+            log(INFO, format_ranked_payoffs_for_logging(self.ipd_scoreboard_dict))
+            #plot_unique_strategy_confusion_matrix(self.ipd_scoreboard_dict)
+            plot_strategy_total_scores_over_rounds(self.ipd_scoreboard_dict)
 
         # Aggregate training results
         aggregated_result: tuple[
@@ -120,7 +133,7 @@ class Ipd_TournamentServer(Server):
             id_p1 = int(player_1[1]["client_id"])
             id_p2 = int(player_2[1]["client_id"])
             # calc unique match hash
-            sorted_x, sorted_y, hash_key = generate_hash(id_p1, id_p2)
+            sorted_x, sorted_y, hash_key = generate_hash(id_p1, id_p2, USE_CANTOR_PAIRING)
             # obtain history
             log(INFO, "pairing input: %s and %s - output %s", sorted_x, sorted_y, hash_key)
             if hash_key in self.matchmaking_dict.keys():
@@ -145,8 +158,8 @@ class Ipd_TournamentServer(Server):
             new_client_instructions[player_2[0]][1].config["match_id"] = hash_key
         return new_client_instructions
             
-          
-    def resolve_ipd_matchmaking(self, results):
+
+    def resolve_ipd_matchmaking(self, results, server_round):
         log(INFO, "Running IPD matchmaking resolve")
         if not results:
             return None, {}
@@ -192,11 +205,21 @@ class Ipd_TournamentServer(Server):
                         action_c2 = (True if num_examples_1 > 0 else False)
                     history_c1 = append_bool_to_msb(history_c1, action_c1)
                     history_c2 = append_bool_to_msb(history_c2, action_c2)
-                    # SCORING HAPPENS HERE!!!!!! score(...)
+                    # get the score for each client
+                    score_c1, score_c2 = get_ipd_score(action_c1, action_c2)
+                    # update scoreboard with client data
+                    c1_ipd_strategy = metrics_1["ipd_strategy_name"]
+                    c2_ipd_strategy = metrics_2["ipd_strategy_name"]
+                    c1_res_level = metrics_1["resource_level"]
+                    c2_res_level = metrics_2["resource_level"]
+                    update_scoreboard(self.ipd_scoreboard_dict, match_id, (c1_id, action_c1, score_c1, c1_ipd_strategy, c1_res_level), (c2_id, action_c2, score_c2, c2_ipd_strategy, c2_res_level), server_round)
                     self.matchmaking_dict[match_id] = (history_c1, history_c2)
             else:
                 log(INFO, "Single match_id found")
 
+
+                
+# async commuinication handling to get client properties, dont touch anymore!
 def get_properties(
     client: ClientProxy, ins: GetPropertiesIns, timeout: Optional[float], group_id: int, idx: int
 ):
@@ -257,52 +280,6 @@ def _handle_finished_future_after_get_properties(
 
     # Not successful, client returned a result where the status code is not OK
     failures.append(result)
-
-
-def generate_hash(x_id, y_id):
-    sorted_x, sorted_y = sorted([x_id, y_id])
-    if USE_CANTOR_PAIRING:
-        return sorted_x, sorted_y, str(cantor_pairing(sorted_x, sorted_y))
-    else:
-        # simple concat str
-        hash_str = str(sorted_x) + "_" + str(sorted_y)
-        return sorted_x, sorted_y, hash_str
-
-def decode_hash(hash_str):
-    if USE_CANTOR_PAIRING:
-        x, y = reverse_cantor_pairing(hash_str)
-        return str(x), str(y)
-    else:
-        str_lst = hash_str.split("_")
-        return str_lst[0], str_lst[1]
-
-def cantor_pairing(x, y):
-    """Combine two non-negative integers into a single hash key using Cantor's pairing function."""
-    return (x + y) * (x + y + 1) // 2 + y
-
-def reverse_cantor_pairing(z):
-    """Retrieve the original pair of numbers (x, y) from the Cantor's pairing function result."""
-    # Solve for x and y from the given z (the hash key)
-    w = int(((8 * z + 1)**0.5 - 1) // 2)  # Inverse of the quadratic equation
-    t = (w * (w + 1)) // 2
-    y = z - t
-    x = w - y
-    return x, y
-
-def append_bool_to_msb(n, new_bool):
-    # Find the number of bits in the integer
-    num_bits = n.bit_length()
-    
-    # Shift the integer left by 1 to make space for the new MSB
-    n = n << 1
-    
-    # If the new boolean is True, set the most significant bit to 1
-    if new_bool:
-        n += 1 << num_bits  # Add 1 at the MSB position
-    
-    return n
-        
-        
         
 
     

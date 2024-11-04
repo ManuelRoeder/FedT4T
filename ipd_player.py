@@ -62,10 +62,10 @@ class ResourceAwareMemOnePlayer:
         except AttributeError:
             return Action.D if p == 0 else Action.C
         
-    def get_resource_level_value(self):
+    def get_resource_level(self):
         return self._alpha
     
-    def set_resource_level_value(self, alpha: util.ResourceLevel):
+    def set_resource_level(self, alpha: util.ResourceLevel):
         self._alpha = alpha
 
     

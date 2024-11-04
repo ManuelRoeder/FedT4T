@@ -174,7 +174,7 @@ def server_fn(context: Context):
     )
     
     # Iterated Prisoners Dilemma Tournament Server
-    ipd_tournament_server= Ipd_TournamentServer(client_manager=SimpleClientManager(), strategy=strategy)
+    ipd_tournament_server= Ipd_TournamentServer(client_manager=SimpleClientManager(), strategy=strategy, num_rounds=num_rounds)
 
     # Construct ServerConfig
     config = ServerConfig(num_rounds=num_rounds)
@@ -197,16 +197,33 @@ def get_client_strategies(exp_str, mem_depth=1, resource_awareness=False):
         # ordinary axelrod set filtered by mem depth 1
         client_strategies = [s() for s  in axl.filtered_strategies(filterset={'memory_depth': mem_depth}, strategies=axl.ordinary_strategies)]
     elif exp_str == "axelrod_diverse":
-        client_strategies = [axl.GTFT(p=0.0), # classical T4T
-                             axl.StochasticWSLS(0), # Pavlov
-                             #axl.Grudger(), #  Grim Trigger,
-                             #axl.SoftGrudger(), # Soft Grim
-                             axl.SoftJoss(0), # Cooperator
-                             axl.MemoryOnePlayer((0, 0, 0, 0), Action.D), # always defect
-                             axl.GTFT(p=0.9), # Stochastic T4T 
-                             axl.GTFT(p=0.75), # tit-for-tat but coopertes with prob. p after opponent defection
-                             #axl.ForgivingTitForTat(),
-                             ]
+        client_strategies = list()
+        
+        # initiate one-by one
+        strat1 = axl.GTFT(p=0.0)
+        strat1.name = "Tit for Tat"
+        client_strategies.append(strat1)
+        
+        strat2 = axl.StochasticWSLS(0)
+        strat2.name = "WinStayLoseShift"
+        client_strategies.append(strat2)
+        
+        strat3 = axl.SoftJoss(0)
+        strat3.name = "Cooperator"
+        client_strategies.append(strat3)
+        
+        strat4 = axl.MemoryOnePlayer((0, 0, 0, 0), Action.D)
+        strat4.name = "Defector"
+        client_strategies.append(strat4)
+        
+        strat5 = axl.GTFT(p=0.9)
+        strat5.name = "Stochastic T4T"
+        client_strategies.append(strat5)
+        
+        strat6 = axl.GTFT(p=0.75)
+        strat6.name = "Forgiving T4T"
+        client_strategies.append(strat6)
+        
     elif exp_str == "axelrod_stochastic":
         # axelrod set filtered by mem depth 1 and stochastic property
         client_strategies = [s() for s in axl.filtered_strategies(filterset={'memory_depth': mem_depth, 'stochastic': True}, strategies=axl.all_strategies)]
