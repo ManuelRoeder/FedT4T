@@ -232,6 +232,26 @@ def get_client_strategies(exp_str, mem_depth=1, resource_awareness=False):
         strat6.name = "Forgiving T4T"
         client_strategies.append(strat6)
         
+    elif exp_str == "1vsALLD":
+        client_strategies = list()
+        
+        # initiate one-by one
+        strat1 = axl.GTFT(p=0.0)
+        strat1.name = "Tit for Tat"
+        client_strategies.append(strat1)
+        
+        strat2 = axl.MemoryOnePlayer((0, 0, 0, 0), Action.D)
+        strat2.name = "Defector_1"
+        client_strategies.append(strat2)
+        
+        strat3 = axl.MemoryOnePlayer((0, 0, 0, 0), Action.D)
+        strat3.name = "Defector_2"
+        client_strategies.append(strat3)
+        
+        strat4 = axl.MemoryOnePlayer((0, 0, 0, 0), Action.D)
+        strat4.name = "Defector_3"
+        client_strategies.append(strat4)
+        
     elif exp_str == "axelrod_stochastic":
         # axelrod set filtered by mem depth 1 and stochastic property
         client_strategies = [s() for s in axl.filtered_strategies(filterset={'memory_depth': mem_depth, 'stochastic': True}, strategies=axl.all_strategies)]
@@ -254,7 +274,7 @@ def get_client_strategies(exp_str, mem_depth=1, resource_awareness=False):
 ###################### MAIN TRACK ######################
 
 # initialize strategies with memory_depth eq. 1
-client_strategies = get_client_strategies("axelrod_diverse", mem_depth=strategy_mem_depth, resource_awareness=True)
+client_strategies = get_client_strategies("1vsALLD", mem_depth=strategy_mem_depth, resource_awareness=True)
 
 # mix list
 random.shuffle(client_strategies)

@@ -23,7 +23,7 @@ from flwr.server.client_manager import SimpleClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.server import fit_clients
 
-from ipd_scoring import  save_strategy_score_differences_matrix, save_strategy_total_scores_over_rounds, update_scoreboard, get_ipd_score, format_ranked_payoffs_for_logging,plot_strategy_scores_matrix
+from ipd_scoring import  save_strategy_score_differences_matrix, save_strategy_total_scores_over_rounds, update_scoreboard, get_ipd_score, format_ranked_payoffs_for_logging,write_unique_matches_to_file, get_clients_score_overview
 from util import append_bool_to_msb, generate_hash, actions_to_string
 
 USE_CANTOR_PAIRING = False # use cantor hashing or free-text transmission of match id
@@ -105,10 +105,11 @@ class Ipd_TournamentServer(Server):
         
         if (len(self.ipd_scoreboard_dict) > 0) and (server_round % 4 == 0):
             #plot_unique_strategy_confusion_matrix(self.ipd_scoreboard_dict)
+            log(INFO, get_clients_score_overview(self.ipd_scoreboard_dict))
             #plot_strategy_score_differences_matrix(self.ipd_scoreboard_dict)
             save_strategy_score_differences_matrix(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_confusion_matrix.png")
             save_strategy_total_scores_over_rounds(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_scoring_plot.png")
-
+            #write_unique_matches_to_file(self.ipd_scoreboard_dict)
         # Aggregate training results
         aggregated_result: tuple[
             Optional[Parameters],

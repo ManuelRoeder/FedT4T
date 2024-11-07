@@ -4,9 +4,12 @@ from flwr.server.client_proxy import ClientProxy
 
 from flwr.common import (
     FitIns,
-    Parameters
+    Parameters,
+    FitRes,
+    Scalar
 )
 
+from typing import Optional, Union
 
 class Ipd_TournamentStrategy(FedAvg):
     """Provides a pool of available clients."""
@@ -32,4 +35,19 @@ class Ipd_TournamentStrategy(FedAvg):
         # Return client/config pairs
         return [(client, fit_ins) for client in clients]
     
+    def aggregate_fit(
+        self,
+        server_round: int,
+        results: list[tuple[ClientProxy, FitRes]],
+        failures: list[Union[tuple[ClientProxy, FitRes], BaseException]],
+    ) -> tuple[Optional[Parameters], dict[str, Scalar]]:
+        # Calculate the total number of examples used during training
+        num_examples_total = sum(num_examples for (_, num_examples) in results)
+        # hack to avoid DivisionByZero for all defect rounds
+        if num_examples_total > 0:
+            return super().aggregate_fit(server_round=server_round,
+                                         results=results,
+                                         failures=failures)
+        else:
+            return None, {}
     

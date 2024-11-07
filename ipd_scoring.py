@@ -207,6 +207,8 @@ def format_ranked_payoffs_for_logging(ipd_scoreboard_dict):
     # Append each client's rank, ID, total payoff, strategy, resource level, number of games, and average payoff
     for rank, (client_id, (total_payoff, strategy, resource_level, num_games, average_payoff)) in enumerate(ranked_clients, start=1):
         output.append(f"{rank:<5} {client_id:<10} {total_payoff:<15} {strategy:<35} {resource_level:<15} {num_games:<10} {average_payoff:<15.2f}")
+    
+    output.append("-" * 105)
 
     # Join all lines into a single formatted string
     formatted_output = "\n".join(output)
@@ -616,3 +618,197 @@ def save_strategy_total_scores_over_rounds(ipd_scoreboard_dict, plot_directory='
     plot_path = os.path.join(plot_directory, filename)
     plt.savefig(plot_path)
     plt.close()  # Close the figure to free memory
+
+
+def write_unique_matches_to_file(ipd_scoreboard_dict, filename='matches.txt'):
+    """
+    Writes all unique matches with the actions performed to a file, sorted by strategy.
+
+    Each line in the file represents one match and includes:
+    - Match ID
+    - Server Round
+    - Client 1 ID, Strategy, Resource Level, Action, Payoff
+    - Client 2 ID, Strategy, Resource Level, Action, Payoff
+
+    The matches are sorted by the strategies of the clients involved.
+
+    Parameters:
+    - filename (str): The name of the file to write the matches to.
+    
+    """
+    # Dictionary to store match data
+    matches_dict = {}
+
+    # Collect match data from ipd_scoreboard_dict
+    for client_id, rounds in ipd_scoreboard_dict.items():
+        for round_data in rounds:
+            # round_data format:
+            # (server_round, match_id, opponent_id, play, coplay, payoff, ipd_strategy, res_level)
+            server_round = round_data[0]
+            match_id = round_data[1]
+            opponent_id = round_data[2]
+            client_play = round_data[3]
+            client_payoff = round_data[5]
+            client_strategy = round_data[6]
+            client_res_level = round_data[7]
+
+            # Initialize match entry if it doesn't exist
+            if match_id not in matches_dict:
+                matches_dict[match_id] = {
+                    'server_round': server_round,
+                    'clients': {}
+                }
+
+            # Add client data to the match
+            matches_dict[match_id]['clients'][client_id] = {
+                'client_id': client_id,
+                'strategy': client_strategy,
+                'res_level': client_res_level,
+                'action': client_play,
+                'payoff': client_payoff
+            }
+
+    # Convert the matches dictionary to a list for sorting
+    matches_list = []
+    for match_id, match_data in matches_dict.items():
+        server_round = match_data['server_round']
+        clients = match_data['clients']
+
+        # Ensure we have data for both clients in the match
+        if len(clients) != 2:
+            continue  # Skip incomplete matches
+
+        # Extract client data and sort them by strategy
+        client_data_list = list(clients.values())
+        client_data_list.sort(key=lambda x: x['strategy'])
+
+        client1_data = client_data_list[0]
+        client2_data = client_data_list[1]
+
+        # Create a sorting key based on strategies
+        sort_key = (client1_data['strategy'], client2_data['strategy'])
+
+        # Append the match data and sorting key to the list
+        matches_list.append((sort_key, match_id, server_round, client1_data, client2_data))
+
+    # Sort the matches list by the sorting key (strategies)
+    matches_list.sort()
+
+    # Write match data to the file
+    with open(filename, 'w') as file:
+        for sort_key, match_id, server_round, client1_data, client2_data in matches_list:
+            # Construct the line to write
+            line = (
+                f"Match ID: {match_id}, Server Round: {server_round}, "
+                f"Client 1 ID: {client1_data['client_id']}, Strategy: {client1_data['strategy']}, "
+                f"Resource Level: {client1_data['res_level']}, Action: {client1_data['action']}, "
+                f"Payoff: {client1_data['payoff']}, "
+                f"Client 2 ID: {client2_data['client_id']}, Strategy: {client2_data['strategy']}, "
+                f"Resource Level: {client2_data['res_level']}, Action: {client2_data['action']}, "
+                f"Payoff: {client2_data['payoff']}\n"
+            )
+
+            # Write the line to the file
+            file.write(line)
+
+    print(f"All unique matches have been written to '{filename}', sorted by strategy.")
+
+
+def get_clients_score_overview(ipd_scoreboard_dict):
+    """
+    Provides an overview of how each client scored their points and returns it as a string.
+
+    For each client, the following information is included:
+    - Total Points
+    - Number of Games
+    - Average Points per Game
+    - Actions Distribution (Cooperate vs. Defect)
+    - Points Scored Against Each Opponent Strategy
+
+    Returns:
+    - A string containing the clients' score overview.
+    """
+    from collections import defaultdict
+
+    # String list to collect output lines
+    output_lines = []
+
+    # Dictionary to hold client statistics
+    client_stats = {}
+
+    # Iterate over each client to collect statistics
+    for client_id, rounds in ipd_scoreboard_dict.items():
+        total_points = 0
+        num_games = 0
+        actions_count = defaultdict(int)
+        opponent_strategy_points = defaultdict(float)
+        opponent_strategy_games = defaultdict(int)
+        strategy = None
+        res_level = None
+
+        for round_data in rounds:
+            # round_data format:
+            # (server_round, match_id, opponent_id, play, coplay, payoff, ipd_strategy, res_level)
+            opponent_id = round_data[2]
+            client_action = round_data[3]
+            client_payoff = round_data[5]
+            client_strategy = round_data[6]
+            client_res_level = round_data[7]
+
+            # Update client strategy and resource level (assumed constant)
+            if strategy is None:
+                strategy = client_strategy
+                res_level = client_res_level
+
+            total_points += client_payoff
+            num_games += 1
+            actions_count[client_action] += 1
+
+            # Get opponent's strategy
+            if opponent_id in ipd_scoreboard_dict:
+                opponent_rounds = ipd_scoreboard_dict[opponent_id]
+                opponent_round = next((r for r in opponent_rounds if r[1] == round_data[1]), None)
+                if opponent_round:
+                    opponent_strategy = opponent_round[6]
+                    opponent_res_level = opponent_round[7]
+                    opponent_label = f"{opponent_strategy} | {opponent_res_level}"
+
+                    # Update points and games against this opponent strategy
+                    opponent_strategy_points[opponent_label] += client_payoff
+                    opponent_strategy_games[opponent_label] += 1
+
+        average_points = total_points / num_games if num_games > 0 else 0
+
+        # Store the statistics for the client
+        client_stats[client_id] = {
+            'Strategy': f"{strategy} | {res_level}",
+            'Total Points': total_points,
+            'Number of Games': num_games,
+            'Average Points per Game': average_points,
+            'Actions Distribution': dict(actions_count),
+            'Points Against Opponent Strategies': dict(opponent_strategy_points),
+            'Games Against Opponent Strategies': dict(opponent_strategy_games)
+        }
+        
+    output_lines.append("-" * 80)
+    # Build the output string
+    for client_id, stats in client_stats.items():
+        output_lines.append(f"Client ID: {client_id}")
+        output_lines.append(f"  Strategy: {stats['Strategy']}")
+        output_lines.append(f"  Total Points: {stats['Total Points']}")
+        output_lines.append(f"  Number of Games: {stats['Number of Games']}")
+        output_lines.append(f"  Average Points per Game: {stats['Average Points per Game']:.2f}")
+        output_lines.append(f"  Actions Distribution:")
+        for action, count in stats['Actions Distribution'].items():
+            output_lines.append(f"    {action}: {count}")
+        output_lines.append(f"  Points Scored Against Opponent Strategies:")
+        for opponent_strategy, points in stats['Points Against Opponent Strategies'].items():
+            games = stats['Games Against Opponent Strategies'][opponent_strategy]
+            avg_points = points / games if games > 0 else 0
+            output_lines.append(f"    {opponent_strategy}: Total Points = {points}, Games = {games}, Average Points = {avg_points:.2f}")
+        output_lines.append("-" * 80)
+
+    # Join the output lines into a single string
+    output_string = "\n".join(output_lines)
+
+    return output_string
