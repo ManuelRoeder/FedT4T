@@ -2,7 +2,7 @@
 
 This respository is an implementation of the algorithm proposed in the paper "**Resource-Aware Cooperation in Federated Learning**".
 
-![racf](/assets/racf.png)
+![racf](/assets/racfl.png)
 
 This code was built on [Flower: A Friendly Federated Learning Framework](https://github.com/adap/flower) and [Axelrod: A research tool for the Iterated Prisoner's Dilemma](https://github.com/Axelrod-Python/Axelrod).
 
