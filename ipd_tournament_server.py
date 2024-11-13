@@ -1,17 +1,39 @@
-from collections import defaultdict
+"""
+MIT License
+
+Copyright (c) 2024 Manuel Roeder
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+
 import random
+import copy
+import concurrent.futures
+from collections import defaultdict
 from logging import INFO
+from typing import Optional, Union
+
 from flwr.common.logger import log
 from flwr.server.strategy import Strategy
 from flwr.server import Server
-import concurrent.futures
-import copy
-from typing import Optional, Union
-from axelrod.action import Action
-
 from flwr.common import (
     FitRes,
-    FitIns,
     Parameters,
     Scalar,
     GetPropertiesIns,
@@ -23,8 +45,12 @@ from flwr.server.client_manager import SimpleClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.server import fit_clients
 
+# Axelrod framework imports
+from axelrod.action import Action
+
+# FedT4T framework imports
 from ipd_scoring import  save_strategy_score_differences_matrix, save_strategy_total_scores_over_rounds, update_scoreboard, get_ipd_score, format_ranked_payoffs_for_logging,write_unique_matches_to_file, get_clients_score_overview
-from util import append_bool_to_msb, generate_hash, actions_to_string
+from util import generate_hash, actions_to_string
 
 USE_CANTOR_PAIRING = False # use cantor hashing or free-text transmission of match id
 

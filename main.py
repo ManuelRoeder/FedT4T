@@ -1,42 +1,69 @@
+"""
+MIT License
+
+Copyright (c) 2024 Manuel Roeder
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+
 import copy
 import os
+import io
+import random
+from typing import List, Tuple
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
+# # torch imports
 import torch
 from torch.utils.data import DataLoader
 from torchvision.transforms import ToTensor, Normalize, Compose
-from datasets import load_dataset
+
 import matplotlib.pyplot as plt
-from collections import Counter
-import random
 import numpy as np
 from PIL import Image
-import io
+
+# FedT4T project imports
+import util
 from model import Net
 from client import FlowerClient
+from ipd_tournament_server import Ipd_TournamentServer
+from ipd_player import ResourceAwareMemOnePlayer
+
+# Flower_datasets framework imports
 from flwr_datasets import FederatedDataset
 from flwr_datasets.partitioner import IidPartitioner, DirichletPartitioner
 from flwr_datasets.visualization import plot_label_distributions
-from flwr.common import Context
 from flwr.client import ClientApp
-from flwr.common import ndarrays_to_parameters
+from flwr.common import Context, ndarrays_to_parameters, Metrics
 from flwr.server import ServerApp, ServerConfig, ServerAppComponents
 from flwr.server.strategy import FedAvg
-from typing import List, Tuple
-from flwr.common import Metrics
-from flwr.simulation import run_simulation
-import axelrod as axl
-from ipd_tournament_server import Ipd_TournamentServer
 from flwr.server.client_manager import SimpleClientManager
-import util
+from flwr.simulation import run_simulation
+
+# Axelrod framework imports
+import axelrod as axl
 from axelrod.action import Action
-from ipd_player import ResourceAwareMemOnePlayer, RandomMemOnePlayer
 
 
-# NUM_PARTITIONS = 20 # determined by number of strategies
-#num_rounds = 50 # determined dynamically
 SEED = 42
-plot_label_distribution_over_clients = False
+SHOW_LABEL_DISTRUBUTION_OVER_CLIENTS = False
 strategy_mem_depth = 1
 FL_STRATEGY_SUBSAMPLE = 0.75
 
@@ -161,7 +188,6 @@ def client_fn(context: Context):
                         client_id=partition_id).to_client()
 
 def server_fn(context: Context):
-
     # instantiate the model
     model = Net(num_classes=10)
     ndarrays = get_params(model)
@@ -198,6 +224,24 @@ def weighted_average(metrics: List[Tuple[int, Metrics]]) -> Metrics:
 
     # Aggregate and return custom metric (weighted average)
     return {"accuracy": sum(accuracies) / sum(examples)}
+
+# show distribution of dataset over clients at the start of training
+def show_dataset_distribution():
+    # pre-load partitions
+    partitioner = fds.partitioners["train"]
+
+    fig, ax, df = plot_label_distributions(
+        partitioner,
+        label_name="label",
+        plot_type="bar",
+        size_unit="absolute",
+        partition_id_axis="x",
+        legend=True,
+        verbose_labels=True,
+        max_num_partitions=30,  # Note we are only showing the first 30 so the plot remains readable
+        title="Per Partition Labels Distribution",
+    )
+    plt.show()
 
 def get_client_strategies(exp_str, mem_depth=1, resource_awareness=False):
     client_strategies = list()
@@ -290,27 +334,12 @@ dirichlet_partitioner = DirichletPartitioner(num_partitions=NUM_PARTITIONS, alph
 # The MNIST dataset will be downloaded if it hasn't been already
 fds = FederatedDataset(dataset="ylecun/mnist", partitioners={"train": dirichlet_partitioner})
 
-
+if SHOW_LABEL_DISTRUBUTION_OVER_CLIENTS:
+    show_dataset_distribution()
+    
+    
 def main():
-    if plot_label_distribution_over_clients:
-        # pre-load partitions
-        partitioner = fds.partitioners["train"]
-
-        fig, ax, df = plot_label_distributions(
-            partitioner,
-            label_name="label",
-            plot_type="bar",
-            size_unit="absolute",
-            partition_id_axis="x",
-            legend=True,
-            verbose_labels=True,
-            max_num_partitions=30,  # Note we are only showing the first 30 so the plot remains readable
-            title="Per Partition Labels Distribution",
-        )
-
-        plt.show()
-
-
+    
     # Concstruct the ClientApp passing the client generation function
     client_app = ClientApp(client_fn=client_fn)
 
@@ -320,7 +349,6 @@ def main():
     run_simulation(
         server_app=server_app, client_app=client_app, num_supernodes=NUM_PARTITIONS
     )
-
 
 if __name__ == '__main__':
     sow_seed(SEED)
