@@ -44,16 +44,16 @@ class RandomMemOnePlayer(MemoryOnePlayer):
 
 class ResourceAwareMemOnePlayer:
     '''
-        Modification wrapper to make Player types resource-aware.
+        Modification wrapper to make Player types resource-awareS.
         Can be applied to all sochastic memory-one strategies of the Axelrod python library. 
     '''
-    def __init__(self, player_instance, initial_resource_level=util.ResourceLevel.FULL):
+    def __init__(self, player_instance, resource_scaling_func = util.linear_scaling, initial_resource_level=util.ResourceLevel.FULL.value):
         if not isinstance(player_instance, MemoryOnePlayer):
             raise TypeError("player_instance must be an instance of Player or its subclass")
-        #self._player = player_instance
-        player_instance.name = "RES.AWARE.M1 | " + player_instance.name
+        player_instance.name = "Res.M1 | " + player_instance.name # resource aware memory one player + axl strategy name
         self.__dict__['_player'] = player_instance
-        self._alpha = initial_resource_level
+        self._res_lvl = initial_resource_level
+        self._res_scaling_func = resource_scaling_func
         
     def __getattr__(self, name):
         """
@@ -78,8 +78,9 @@ class ResourceAwareMemOnePlayer:
             return self._initial
         # Determine which probability to use
         p = self._four_vector[(self.history[-1], opponent.history[-1])]
-        # scale p value with resource aware scaling parameter alpha
-        p = self._alpha.value * p
+        # recalculate scaling factor
+        scaling_factor = self._res_scaling_func(self._res_lvl)
+        p = scaling_factor * p
         # Draw a random number in [0, 1] to decide
         try:
             return self._random.random_choice(p)
@@ -87,10 +88,16 @@ class ResourceAwareMemOnePlayer:
             return Action.D if p == 0 else Action.C
         
     def get_resource_level(self):
-        return self._alpha
+        return self._res_lvl
     
-    def set_resource_level(self, alpha: util.ResourceLevel):
-        self._alpha = alpha
+    def set_resource_level(self, res_lvl):
+        self._res_lvl = res_lvl
+        
+    def get_scaling_func(self):
+        return self._res_scaling_func
+        
+    def set_scaling_func(self, new_scaling_func):
+        self._res_scaling_func = new_scaling_func
 
     
     

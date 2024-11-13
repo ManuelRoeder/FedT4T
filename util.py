@@ -27,8 +27,10 @@ from axelrod.action import Action
 
 class ResourceLevel(float, Enum):
     NONE = -1.0
-    LOW = 0.0
+    EMPTY = 0.0 + 0.1E-6
+    LOW = 0.25
     MODERATE = 0.5
+    HIGH = 0.75
     FULL = 1.0
     
     @classmethod
@@ -113,3 +115,17 @@ def string_to_actions(action_str):
         'C': Action.C
     }
     return [action_map[char] for char in action_str]
+
+
+
+# linear scaling function for resource level
+def linear_scaling(res_lvl):
+    # normalize
+    e_norm = res_lvl / ResourceLevel.FULL.value
+    # scale linear
+    e_scaled = e_norm / ResourceLevel.EMPTY.value
+    return e_scaled
+
+
+def hybrid_scaling(res_lvl):
+    pass
