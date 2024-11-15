@@ -22,8 +22,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+import random
 from enum import Enum
 from axelrod.action import Action
+
+# global seed
+SEED = 42
+random.seed(SEED)
 
 class ResourceLevel(float, Enum):
     NONE = -1.0
@@ -120,12 +125,37 @@ def string_to_actions(action_str):
 
 # linear scaling function for resource level
 def linear_scaling(res_lvl):
-    # normalize
-    e_norm = res_lvl / ResourceLevel.FULL.value
-    # scale linear
-    e_scaled = e_norm / ResourceLevel.EMPTY.value
+    # normalize and scale
+    e_scaled = (res_lvl - ResourceLevel.EMPTY.value) / (ResourceLevel.FULL.value - ResourceLevel.EMPTY.value)
     return e_scaled
 
 
 def hybrid_scaling(res_lvl):
     pass
+
+
+def random_action_choice(p: float = 0.5) -> Action:
+        """
+        Return C with probability `p`, else return D
+
+        No random sample is carried out if p is 0 or 1.
+
+        Parameters
+        ----------
+        p : float
+            The probability of picking C
+
+        Returns
+        -------
+        axelrod.Action
+        """
+        if p == 0:
+            return Action.D
+
+        if p == 1:
+            return Action.C
+
+        r = random.uniform(0.0, 1.0)
+        if r < p:
+            return Action.C
+        return Action.D

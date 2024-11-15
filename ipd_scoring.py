@@ -26,14 +26,17 @@ import os
 import util
 import pandas as pd
 import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+import networkx as nx
 import seaborn as sns
 from collections import defaultdict
+
 
 
 # payoff-matrix configuration
 R = 3 # CC
 S = 0 # CD
-T = 5 # DC
+T = 4 # DC
 P = 1 # DD
 
 def get_ipd_score(a1, a2):
@@ -207,7 +210,7 @@ def format_ranked_payoffs_for_logging(ipd_scoreboard_dict):
 
         # Extract strategy and resource level from the first entry (assuming they are constant)
         strategy = rounds[0][6]  # ipd_strategy is at index 6
-        resource_level = (util.ResourceLevel.from_float(rounds[0][7])).to_string()  # res_level is at index 7
+        resource_level = str(rounds[0][7]) # res_level is at index 7
 
         # Calculate the number of games (rounds this client actually played)
         num_games = len(rounds)
@@ -294,7 +297,91 @@ def plot_unique_strategy_confusion_matrix(ipd_scoreboard_dict):
     plt.yticks(rotation=0)
     plt.show()
     
-    
+
+def save_strategy_score_differences_matrix2(ipd_scoreboard_dict, plot_directory='plots', filename='strategy_score_differences_matrix.png'):
+    """
+    Calculates the score differences (sum_score1 - sum_score2) for each strategy pair (excluding resource levels)
+    and saves the plot.
+
+    Parameters:
+    - plot_directory (str): The directory where the plot image will be saved.
+    - filename (str): The filename for the saved plot image.
+
+    The plot will be saved in the specified directory with the given filename.
+    """
+    # Ensure the plot directory exists
+    if not os.path.exists(plot_directory):
+        os.makedirs(plot_directory)
+
+    # Dictionary to store accumulated scores between unique strategy pairs
+    interaction_data = {}
+
+    # Iterate through each client to collect scores for unique interactions
+    for client_id, rounds in ipd_scoreboard_dict.items():
+        for round_data in rounds:
+            # round_data format:
+            # (server_round, match_id, opponent_id, play, coplay, payoff, ipd_strategy, res_level)
+            match_id = round_data[1]
+            client_strategy = round_data[6]
+            client_label = f"{client_strategy} | Client {client_id}"
+            opponent_id = round_data[2]
+            client_payoff = round_data[5]  # Client's payoff for this round
+
+            # Ensure the opponent exists and retrieve opponent data for the same match
+            if opponent_id in ipd_scoreboard_dict:
+                # Find the opponent's data within the same match
+                opponent_round = next((r for r in ipd_scoreboard_dict[opponent_id] if r[1] == match_id), None)
+                if opponent_round:
+                    opponent_strategy = opponent_round[6]
+                    opponent_label = f"{opponent_strategy} | Client {opponent_id}"
+                    opponent_payoff = opponent_round[5]  # Opponent's payoff for this round
+
+                    # Create a label pair
+                    label_pair = (client_label, opponent_label)
+
+                    # Initialize or update the interaction data
+                    if label_pair not in interaction_data:
+                        interaction_data[label_pair] = [client_payoff, opponent_payoff]
+                    else:
+                        interaction_data[label_pair][0] += client_payoff
+                        interaction_data[label_pair][1] += opponent_payoff
+
+    # Extract unique labels
+    unique_labels = sorted(set(label for pair in interaction_data.keys() for label in pair))
+
+    # Create a DataFrame to store the score differences
+    matrix = pd.DataFrame(0.0, index=unique_labels, columns=unique_labels)
+
+    # Fill the matrix with the score differences
+    for (client_label, opponent_label), (sum_score1, sum_score2) in interaction_data.items():
+        score_difference = sum_score1 - sum_score2
+        matrix.at[client_label, opponent_label] = score_difference
+
+    # Plot the confusion matrix
+    plt.figure(figsize=(12, 10))
+    sns.heatmap(
+        matrix,
+        annot=True,
+        fmt=".1f",
+        cmap="coolwarm",
+        center=0,
+        cbar=True,
+        linewidths=0.5,
+        linecolor='gray'
+    )
+    plt.title("Strategy Score Differences Matrix (Client Score - Opponent Score)")
+    plt.xlabel("Opponent Strategy")
+    plt.ylabel("Client Strategy")
+    plt.xticks(rotation=45, ha="right")
+    plt.yticks(rotation=0)
+    plt.tight_layout()
+
+    # Save the plot to the specified directory with the given filename
+    plot_path = os.path.join(plot_directory, filename)
+    plt.savefig(plot_path)
+    plt.close()  # Close the figure to free memory
+
+    print(f"Plot saved to {plot_path}")
 
 def plot_strategy_scores_matrix(ipd_scoreboard_dict):
     """
@@ -835,3 +922,283 @@ def get_clients_score_overview(ipd_scoreboard_dict):
     output_string = "\n".join(output_lines)
 
     return output_string
+
+
+def plot_interaction_graph(ipd_scoreboard_dict, plot_directory='plots', filename='interaction_graph.png'):
+    """
+    Constructs and plots a graph of client interactions.
+    
+    - Nodes represent clients and can be labeled with their strategy and resource level.
+    - Edges represent interactions between clients and can be weighted by the number of interactions or total payoff.
+    
+    Parameters:
+    - plot_directory (str): The directory where the plot image will be saved.
+    - filename (str): The filename for the saved plot image.
+    """
+    import os
+    from collections import defaultdict
+
+    # Ensure the plot directory exists
+    if not os.path.exists(plot_directory):
+        os.makedirs(plot_directory)
+    
+    # Create a directed graph
+    G = nx.DiGraph()
+
+    # Dictionary to store node attributes (strategy and resource level)
+    node_attributes = {}
+
+    # Dictionary to store edge weights (number of interactions and total payoffs)
+    edge_weights = defaultdict(lambda: {'interactions': 0, 'total_payoff': 0})
+
+    # Iterate over each client to collect interaction data
+    for client_id, rounds in ipd_scoreboard_dict.items():
+        for round_data in rounds:
+            # Unpack round data
+            # Format: (server_round, match_id, opponent_id, play, coplay, payoff, ipd_strategy, res_level)
+            opponent_id = round_data[2]
+            client_payoff = round_data[5]
+            client_strategy = round_data[6]
+            client_res_level = round_data[7]
+
+            # Add client node with attributes if not already added
+            if client_id not in node_attributes:
+                node_attributes[client_id] = {
+                    'strategy': client_strategy,
+                    'res_level': client_res_level
+                }
+                G.add_node(client_id, strategy=client_strategy, res_level=client_res_level)
+
+            # Add opponent node with attributes if not already added
+            if opponent_id in ipd_scoreboard_dict and opponent_id not in node_attributes:
+                opponent_rounds = ipd_scoreboard_dict[opponent_id]
+                # Assume opponent's strategy and res_level are constant
+                opponent_strategy = opponent_rounds[0][6]
+                opponent_res_level = opponent_rounds[0][7]
+                node_attributes[opponent_id] = {
+                    'strategy': opponent_strategy,
+                    'res_level': opponent_res_level
+                }
+                G.add_node(opponent_id, strategy=opponent_strategy, res_level=opponent_res_level)
+
+            # Update edge weights
+            edge_key = (client_id, opponent_id)
+            edge_weights[edge_key]['interactions'] += 1
+            edge_weights[edge_key]['total_payoff'] += client_payoff
+
+    # Add edges to the graph with weights
+    for (client_id, opponent_id), weights in edge_weights.items():
+        G.add_edge(
+            client_id,
+            opponent_id,
+            interactions=weights['interactions'],
+            total_payoff=weights['total_payoff']
+        )
+
+    # Draw the graph
+    plt.figure(figsize=(12, 10))
+
+    # Position nodes using spring layout for better visualization
+    pos = nx.spring_layout(G, k=0.5, iterations=50)
+
+    # Node labels with strategy and resource level
+    node_labels = {
+        node: f"{node}\n{data['strategy']} | {data['res_level']}"
+        for node, data in G.nodes(data=True)
+    }
+
+    # Edge widths based on number of interactions
+    edge_widths = [G[u][v]['interactions'] for u, v in G.edges()]
+    max_width = max(edge_widths) if edge_widths else 1
+    edge_widths = [3 * width / max_width for width in edge_widths]  # Normalize widths
+
+    # Draw nodes
+    nx.draw_networkx_nodes(G, pos, node_size=500, node_color='skyblue')
+
+    # Draw edges
+    nx.draw_networkx_edges(G, pos, arrowstyle='->', arrowsize=15, width=edge_widths, edge_color='gray')
+
+    # Draw labels
+    nx.draw_networkx_labels(G, pos, labels=node_labels, font_size=8)
+
+    plt.title("Client Interaction Graph")
+    plt.axis('off')
+    plt.tight_layout()
+
+    # Save the plot to the specified directory with the given filename
+    plot_path = os.path.join(plot_directory, filename)
+    plt.savefig(plot_path)
+    plt.close()  # Close the figure to free memory
+
+    print(f"Interaction graph has been saved to '{plot_path}'.")
+    
+    
+def save_average_score_per_client_over_rounds(ipd_scoreboard_dict, plot_directory='plots', filename='average_score_per_client_over_rounds.png'):
+    """
+    Plots the average score per client over the server rounds and saves the plot to a file.
+
+    Parameters:
+    - plot_directory (str): The directory where the plot image will be saved.
+    - filename (str): The filename for the saved plot image.
+
+    The plot will be saved in the specified directory with the given filename.
+    """
+    # Ensure the plot directory exists
+    if not os.path.exists(plot_directory):
+        os.makedirs(plot_directory)
+
+    # Collect all unique server rounds and clients
+    all_rounds = set()
+    clients = set()
+    data_list = []
+
+    # Gather data from ipd_scoreboard_dict
+    for client_id, rounds in ipd_scoreboard_dict.items():
+        for round_data in rounds:
+            server_round = round_data[0]
+            payoff = round_data[5]  # Payoff
+
+            all_rounds.add(server_round)
+            clients.add(client_id)
+            data_list.append((server_round, client_id, payoff))
+
+    # Sort the server rounds
+    sorted_rounds = sorted(all_rounds)
+
+    # Initialize cumulative scores and counts for each client
+    average_scores_per_client = {client_id: [] for client_id in clients}
+    cumulative_scores = {client_id: 0 for client_id in clients}
+    cumulative_counts = {client_id: 0 for client_id in clients}
+
+    # Group data by server round
+    data_by_round = defaultdict(list)
+    for server_round, client_id, payoff in data_list:
+        data_by_round[server_round].append((client_id, payoff))
+
+    # Iterate over each server round in order
+    for server_round in sorted_rounds:
+        # Append current average scores to the lists
+        for client_id in clients:
+            if cumulative_counts[client_id] > 0:
+                average_score = cumulative_scores[client_id] / cumulative_counts[client_id]
+            else:
+                average_score = 0
+            average_scores_per_client[client_id].append(average_score)
+
+        # Update cumulative scores and counts with payoffs from the current round
+        for client_id, payoff in data_by_round.get(server_round, []):
+            cumulative_scores[client_id] += payoff
+            cumulative_counts[client_id] += 1
+
+    # Append the final average scores after the last round
+    for client_id in clients:
+        if cumulative_counts[client_id] > 0:
+            average_score = cumulative_scores[client_id] / cumulative_counts[client_id]
+        else:
+            average_score = 0
+        average_scores_per_client[client_id].append(average_score)
+
+    # Extend the rounds list to match the length of average scores lists
+    extended_rounds = sorted_rounds + [sorted_rounds[-1] + 1]
+
+    # Plot the average scores over rounds for each client
+    plt.figure(figsize=(12, 8))
+    for client_id, average_scores in average_scores_per_client.items():
+        plt.plot(extended_rounds, average_scores, label=f"Client {client_id}")
+
+    plt.title("Average Score per Client Over Server Rounds")
+    plt.xlabel("Server Round")
+    plt.ylabel("Average Score")
+    plt.legend(title="Client")
+    plt.grid(True)
+    plt.tight_layout()
+
+    # Save the plot to the specified directory with the given filename
+    plot_path = os.path.join(plot_directory, filename)
+    plt.savefig(plot_path)
+    plt.close()  # Close the figure to free memory
+
+    print(f"Plot saved to {plot_path}")
+    
+    
+def plot_average_score_per_strategy_over_rounds(ipd_scoreboard_dict, plot_directory='plots', filename='average_score_per_strategy_over_rounds.png'):
+    """
+    Plots the average score per strategy over the server rounds and saves the plot to a file.
+
+    Parameters:
+    - plot_directory (str): The directory where the plot image will be saved.
+    - filename (str): The filename for the saved plot image.
+
+    The plot will be saved in the specified directory with the given filename.
+    """
+    # Ensure the plot directory exists
+    if not os.path.exists(plot_directory):
+        os.makedirs(plot_directory)
+
+    # Collect all unique server rounds and strategies
+    all_rounds = set()
+    strategies = set()
+    data_list = []
+
+    # Gather data from ipd_scoreboard_dict
+    for client_id, rounds in ipd_scoreboard_dict.items():
+        for round_data in rounds:
+            server_round = round_data[0]
+            payoff = round_data[5]  # Payoff
+            strategy_label = round_data[6]  # Strategy name
+
+            all_rounds.add(server_round)
+            strategies.add(strategy_label)
+            data_list.append((server_round, strategy_label, payoff))
+
+    # Sort the server rounds
+    sorted_rounds = sorted(all_rounds)
+
+    # Initialize average scores for each strategy
+    average_scores_per_strategy = {strategy: [] for strategy in strategies}
+
+    # Group data by server round
+    data_by_round = defaultdict(list)
+    for server_round, strategy_label, payoff in data_list:
+        data_by_round[server_round].append((strategy_label, payoff))
+
+    # Initialize previous averages for strategies
+    previous_averages = {strategy: 0 for strategy in strategies}
+
+    # Iterate over each server round in order
+    for server_round in sorted_rounds:
+        # Collect payoffs per strategy for the current round
+        payoffs_per_strategy = defaultdict(list)
+        for strategy_label, payoff in data_by_round.get(server_round, []):
+            payoffs_per_strategy[strategy_label].append(payoff)
+
+        # Calculate average scores for each strategy
+        for strategy in strategies:
+            if payoffs_per_strategy[strategy]:
+                average_score = sum(payoffs_per_strategy[strategy]) / len(payoffs_per_strategy[strategy])
+                previous_averages[strategy] = average_score  # Update previous average
+            else:
+                average_score = previous_averages[strategy]  # Use previous average if no data in this round
+            average_scores_per_strategy[strategy].append(average_score)
+
+    # Extend the rounds list if necessary
+    rounds_to_plot = sorted_rounds
+
+    # Plot the average scores over rounds for each strategy
+    plt.figure(figsize=(12, 8))
+    for strategy, average_scores in average_scores_per_strategy.items():
+        plt.plot(rounds_to_plot, average_scores, label=strategy)
+
+    plt.title("Average Score per Strategy Over Server Rounds")
+    plt.xlabel("Server Round")
+    plt.ylabel("Average Score")
+    plt.legend(title="Strategy")
+    plt.grid(True)
+    plt.tight_layout()
+
+    # Save the plot to the specified directory with the given filename
+    plot_path = os.path.join(plot_directory, filename)
+    plt.savefig(plot_path)
+    plt.close()  # Close the figure to free memory
+
+    print(f"Plot saved to {plot_path}")

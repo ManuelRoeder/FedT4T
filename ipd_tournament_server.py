@@ -49,7 +49,7 @@ from flwr.server.server import fit_clients
 from axelrod.action import Action
 
 # FedT4T framework imports
-from ipd_scoring import  save_strategy_score_differences_matrix, save_strategy_total_scores_over_rounds, update_scoreboard, get_ipd_score, format_ranked_payoffs_for_logging,write_unique_matches_to_file, get_clients_score_overview
+from ipd_scoring import  plot_average_score_per_strategy_over_rounds, save_strategy_score_differences_matrix2, save_average_score_per_client_over_rounds, save_strategy_total_scores_over_rounds, update_scoreboard, get_ipd_score, format_ranked_payoffs_for_logging, get_clients_score_overview, plot_interaction_graph
 from util import generate_hash, actions_to_string
 
 USE_CANTOR_PAIRING = False # use cantor hashing or free-text transmission of match id
@@ -125,17 +125,10 @@ class Ipd_TournamentServer(Server):
         
         if server_round > 1:
             self.resolve_ipd_matchmaking(results, server_round)
-            
-        # check some stats
-        log(INFO, format_ranked_payoffs_for_logging(self.ipd_scoreboard_dict))
         
-        if (len(self.ipd_scoreboard_dict) > 0) and (server_round % 4 == 0):
-            #plot_unique_strategy_confusion_matrix(self.ipd_scoreboard_dict)
-            log(INFO, get_clients_score_overview(self.ipd_scoreboard_dict))
-            #plot_strategy_score_differences_matrix(self.ipd_scoreboard_dict)
-            save_strategy_score_differences_matrix(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_confusion_matrix.png")
-            save_strategy_total_scores_over_rounds(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_scoring_plot.png")
-            #write_unique_matches_to_file(self.ipd_scoreboard_dict)
+        # plot or print FL round statistics
+        self.statistics(server_round)
+       
         # Aggregate training results
         aggregated_result: tuple[
             Optional[Parameters],
@@ -145,6 +138,21 @@ class Ipd_TournamentServer(Server):
         parameters_aggregated, metrics_aggregated = aggregated_result
         return parameters_aggregated, metrics_aggregated, (results, failures)
     
+    def statistics(self, server_round):
+         # check some stats
+        log(INFO, format_ranked_payoffs_for_logging(self.ipd_scoreboard_dict))
+        
+        if (len(self.ipd_scoreboard_dict) > 0) and (server_round % 4 == 0):
+            #plot_unique_strategy_confusion_matrix(self.ipd_scoreboard_dict)
+            log(INFO, get_clients_score_overview(self.ipd_scoreboard_dict))
+            #plot_strategy_score_differences_matrix(self.ipd_scoreboard_dict)
+            save_strategy_score_differences_matrix2(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_confusion_matrix.png")
+            #save_strategy_total_scores_over_rounds(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_scoring_plot.png")
+            plot_interaction_graph(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_interaction_graph.png" )
+            #save_average_score_per_client_over_rounds(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_scoring_plot_avg.png")
+            plot_average_score_per_strategy_over_rounds(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_scoring_plot_avg.png")
+            #write_unique_matches_to_file(self.ipd_scoreboard_dict)
+            
     
     def ipd_matchmaking(self, client_instructions, max_workers, timeout, server_round):
         # collect client list async

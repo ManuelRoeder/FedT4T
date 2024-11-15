@@ -44,7 +44,7 @@ import util
 from model import Net
 from client import FlowerClient
 from ipd_tournament_server import Ipd_TournamentServer
-from ipd_player import ResourceAwareMemOnePlayer
+from ipd_player import ResourceAwareMemOnePlayer, RandomIPDPlayer
 
 # Flower_datasets framework imports
 from flwr_datasets import FederatedDataset
@@ -62,7 +62,7 @@ import axelrod as axl
 from axelrod.action import Action
 
 
-SEED = 42
+
 SHOW_LABEL_DISTRUBUTION_OVER_CLIENTS = False
 strategy_mem_depth = 1
 FL_STRATEGY_SUBSAMPLE = 0.75
@@ -170,7 +170,7 @@ def client_fn(context: Context):
     partition_id = int(context.node_config["partition-id"])
     partition = fds.load_partition(partition_id, "train")
     # partition into train/validation
-    partition_train_val = partition.train_test_split(test_size=0.1, seed=SEED)
+    partition_train_val = partition.train_test_split(test_size=0.1, seed=util.SEED)
 
     # Let's use the function defined earlier to construct the dataloaders
     # and apply the dataset transformations
@@ -178,7 +178,7 @@ def client_fn(context: Context):
     
     # Pop last element from list and set seed
     client_ipd_strat = client_strategies[partition_id]
-    client_ipd_strat.set_seed(SEED)
+    client_ipd_strat.set_seed(util.SEED)
 
     print("Init client(" + str(partition_id) + ") with strategy " + client_ipd_strat.name)
 
@@ -248,60 +248,57 @@ def get_client_strategies(exp_str, mem_depth=1, resource_awareness=False):
     if exp_str == "axelrod_ordinary":
         # ordinary axelrod set filtered by mem depth 1
         client_strategies = [s() for s  in axl.filtered_strategies(filterset={'memory_depth': mem_depth}, strategies=axl.ordinary_strategies)]
-    elif exp_str == "axelrod_diverse":
+    elif exp_str == "m1_selected":
         client_strategies = list()
         
         # initiate one-by one
         strat1 = axl.GTFT(p=0.0)
         strat1.name = "Tit for Tat"
+        strat1.set_seed(util.SEED)
         client_strategies.append(strat1)
         
         strat2 = axl.StochasticWSLS(0)
         strat2.name = "WinStayLoseShift"
+        strat2.set_seed(util.SEED)
         client_strategies.append(strat2)
         
         strat3 = axl.SoftJoss(0)
         strat3.name = "Cooperator"
+        strat3.set_seed(util.SEED)
         client_strategies.append(strat3)
         
         strat4 = axl.MemoryOnePlayer((0, 0, 0, 0), Action.D)
         strat4.name = "Defector"
+        strat4.set_seed(util.SEED)
         client_strategies.append(strat4)
         
         strat5 = axl.GTFT(p=0.9)
         strat5.name = "Stochastic T4T"
+        strat5.set_seed(util.SEED)
         client_strategies.append(strat5)
         
         strat6 = axl.GTFT(p=0.75)
         strat6.name = "Forgiving T4T"
+        strat6.set_seed(util.SEED)
         client_strategies.append(strat6)
         
-    elif exp_str == "1vsALLD":
-        client_strategies = list()
+        strat7 = axl.MemoryOnePlayer((1.0, 0.0, 0.0, 0.0), Action.C)
+        strat7.name = "Grim"
+        strat7.set_seed(util.SEED)
+        client_strategies.append(strat7)
         
-        # initiate one-by one
-        strat1 = axl.GTFT(p=0.0)
-        strat1.name = "Tit for Tat"
-        client_strategies.append(strat1)
-        
-        strat2 = axl.MemoryOnePlayer((0, 0, 0, 0), Action.D)
-        strat2.name = "Defector_1"
-        client_strategies.append(strat2)
-        
-        strat3 = axl.MemoryOnePlayer((0, 0, 0, 0), Action.D)
-        strat3.name = "Defector_2"
-        client_strategies.append(strat3)
-        
-        strat4 = axl.MemoryOnePlayer((0, 0, 0, 0), Action.D)
-        strat4.name = "Defector_3"
-        client_strategies.append(strat4)
-        
+        strat8 = axl.FirmButFair()
+        strat8.name = "FirmButFair"
+        strat8.set_seed(util.SEED)
+        client_strategies.append(strat8)
+
     elif exp_str == "axelrod_stochastic":
         # axelrod set filtered by mem depth 1 and stochastic property
         client_strategies = [s() for s in axl.filtered_strategies(filterset={'memory_depth': mem_depth, 'stochastic': True}, strategies=axl.all_strategies)]
     
     # extend w random
-    #random_player = RandomMemOnePlayer()
+    random_player = RandomIPDPlayer()
+    random_player.set_seed(util.SEED)
     #client_strategies.append(random_player)
     
     if resource_awareness:
@@ -309,16 +306,17 @@ def get_client_strategies(exp_str, mem_depth=1, resource_awareness=False):
         selected_strategies = list()
         for strategy in client_strategies:
             if isinstance(strategy, axl.MemoryOnePlayer):
-                selected_strategies.append(ResourceAwareMemOnePlayer(copy.deepcopy(strategy), initial_resource_level=util.ResourceLevel.LOW))
-                selected_strategies.append(ResourceAwareMemOnePlayer(copy.deepcopy(strategy), initial_resource_level=util.ResourceLevel.MODERATE))
-                selected_strategies.append(ResourceAwareMemOnePlayer(copy.deepcopy(strategy), initial_resource_level=util.ResourceLevel.FULL))
+                #selected_strategies.append(ResourceAwareMemOnePlayer(copy.deepcopy(strategy), initial_resource_value=util.ResourceLevel.LOW.value))
+                #selected_strategies.append(ResourceAwareMemOnePlayer(copy.deepcopy(strategy), initial_resource_value=util.ResourceLevel.MODERATE.value))
+                selected_strategies.append(ResourceAwareMemOnePlayer(copy.deepcopy(strategy), initial_resource_value=util.ResourceLevel.FULL.value))
+        selected_strategies.append(random_player)
         return selected_strategies
                 
     return client_strategies
 ###################### MAIN TRACK ######################
 
 # initialize strategies with memory_depth eq. 1
-client_strategies = get_client_strategies("1vsALLD", mem_depth=strategy_mem_depth, resource_awareness=True)
+client_strategies = get_client_strategies("m1_selected", mem_depth=strategy_mem_depth, resource_awareness=True)
 
 # mix list
 random.shuffle(client_strategies)
@@ -329,14 +327,13 @@ print("Strategies initialized: " + str(NUM_PARTITIONS))
 
 # initialize data partitions
 iid_partitioner = IidPartitioner(num_partitions=NUM_PARTITIONS)
-dirichlet_partitioner = DirichletPartitioner(num_partitions=NUM_PARTITIONS, alpha=0.1, partition_by="label", seed=SEED, min_partition_size=0)
+dirichlet_partitioner = DirichletPartitioner(num_partitions=NUM_PARTITIONS, alpha=0.1, partition_by="label", seed=util.SEED, min_partition_size=1)
 # Let's partition the "train" split of the MNIST dataset
 # The MNIST dataset will be downloaded if it hasn't been already
 fds = FederatedDataset(dataset="ylecun/mnist", partitioners={"train": dirichlet_partitioner})
 
 if SHOW_LABEL_DISTRUBUTION_OVER_CLIENTS:
     show_dataset_distribution()
-    
     
 def main():
     
@@ -351,5 +348,5 @@ def main():
     )
 
 if __name__ == '__main__':
-    sow_seed(SEED)
+    sow_seed(util.SEED)
     main()

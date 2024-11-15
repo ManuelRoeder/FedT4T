@@ -37,6 +37,8 @@ from ipd_player import ClientShadowPlayer, ResourceAwareMemOnePlayer
 from model import Net
 import util
 
+SEED = 42
+
 class FlowerClient(NumPyClient):
     def __init__(self, trainloader, valloader, ipd_strategy: axl.Player, client_id) -> None:
         super().__init__()
@@ -60,14 +62,14 @@ class FlowerClient(NumPyClient):
         
         # prepare return meta data
         # check client resource level
-        res_level = util.ResourceLevel.NONE
+        res_level = util.ResourceLevel.NONE.value
         if isinstance(self.ipd_strategy, ResourceAwareMemOnePlayer):
             res_level = self.ipd_strategy.get_resource_level()
             
-        ret_dict = {"match_id": match_id, "client_id": self.client_id, "ipd_strategy_name": self.ipd_strategy.name, "resource_level": res_level.value}
+        ret_dict = {"match_id": match_id, "client_id": self.client_id, "ipd_strategy_name": self.ipd_strategy.name, "resource_level": str(res_level)}
         
         if cooperate:
-            log(INFO, "Client Id %s fit(): COOPERATE action", self.client_id)
+            log(INFO, "Client Id %s fit() with strategy %s: COOPERATE action", self.client_id, self.ipd_strategy.name)
             # Define the optimizer
             optim = torch.optim.SGD(self.model.parameters(), lr=0.01, momentum=0.9)
 
@@ -77,7 +79,7 @@ class FlowerClient(NumPyClient):
             # return the model parameters to the server as well as extra info (number of training examples in this case)
             return get_params(self.model), len(self.trainloader), ret_dict
         else:
-            log(INFO, "Client Id %s fit(): DEFECT action", self.client_id)
+            log(INFO, "Client Id %s fit() with strategy %s: DEFECT action", self.client_id, self.ipd_strategy.name)
             
         # return empty answer to signal defect
         return get_params(self.model), 0, ret_dict
@@ -112,8 +114,9 @@ class FlowerClient(NumPyClient):
             match_id = config["match_id"]
             log(INFO, "Match id found %s", match_id)
             
-        # always reset strategy history
+        # always reset strategy history and sow seed
         self.ipd_strategy.reset()
+        self.ipd_strategy.set_seed(util.SEED)
         
         # sanity check on matchup history
         if len(ipd_history_list_plays) > 0:

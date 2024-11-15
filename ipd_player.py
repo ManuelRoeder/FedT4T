@@ -24,7 +24,7 @@ SOFTWARE.
 import util
 
 # Axelrod framework imports
-from axelrod.strategies import MemoryOnePlayer
+from axelrod.strategies import Random, MemoryOnePlayer
 from axelrod.player import Player
 from axelrod.action import Action
 
@@ -33,12 +33,11 @@ class ClientShadowPlayer(Player):
     name = "FL Client Shadow Player"
 
 
-class RandomMemOnePlayer(MemoryOnePlayer):
-    #name = "Random Memory One Player"
-    def __init__(
-    ) -> None:
-        init_action = Action.C#MemoryOnePlayer._random.random_choice(0.5)
-        super().__init__((0.5, 0.5, 0.5, 0.5), init_action)
+class RandomIPDPlayer(Random):
+        def strategy(self, opponent: Player) -> Action:
+            """Actual strategy definition that determines player's action."""
+            return util.random_action_choice(self.p)
+
         
         
 
@@ -47,12 +46,14 @@ class ResourceAwareMemOnePlayer:
         Modification wrapper to make Player types resource-awareS.
         Can be applied to all sochastic memory-one strategies of the Axelrod python library. 
     '''
-    def __init__(self, player_instance, resource_scaling_func = util.linear_scaling, initial_resource_level=util.ResourceLevel.FULL.value):
+    def __init__(self, player_instance, resource_scaling_func = util.linear_scaling, initial_resource_value=util.ResourceLevel.FULL.value):
         if not isinstance(player_instance, MemoryOnePlayer):
             raise TypeError("player_instance must be an instance of Player or its subclass")
         player_instance.name = "Res.M1 | " + player_instance.name # resource aware memory one player + axl strategy name
         self.__dict__['_player'] = player_instance
-        self._res_lvl = initial_resource_level
+        if initial_resource_value > 1.0 or initial_resource_value < 0.0:
+            raise ValueError("initial_resource_value needs to be between 0.0 and 1.0")
+        self._res_lvl = initial_resource_value
         self._res_scaling_func = resource_scaling_func
         
     def __getattr__(self, name):
@@ -83,7 +84,7 @@ class ResourceAwareMemOnePlayer:
         p = scaling_factor * p
         # Draw a random number in [0, 1] to decide
         try:
-            return self._random.random_choice(p)
+            return util.random_action_choice(p)
         except AttributeError:
             return Action.D if p == 0 else Action.C
         
