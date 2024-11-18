@@ -196,6 +196,9 @@ class Ipd_TournamentServer(Server):
             # attach match_id
             new_client_instructions[player_1[0]][1].config["match_id"] = hash_key
             new_client_instructions[player_2[0]][1].config["match_id"] = hash_key
+            # attach server round
+            new_client_instructions[player_1[0]][1].config["server_round"] = str(server_round)
+            new_client_instructions[player_2[0]][1].config["server_round"] = str(server_round)
         return new_client_instructions
             
 

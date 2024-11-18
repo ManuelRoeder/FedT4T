@@ -36,7 +36,7 @@ from collections import defaultdict
 # payoff-matrix configuration
 R = 3 # CC
 S = 0 # CD
-T = 4 # DC
+T = 5 # DC
 P = 1 # DD
 
 def get_ipd_score(a1, a2):

@@ -37,7 +37,8 @@ from ipd_player import ClientShadowPlayer, ResourceAwareMemOnePlayer
 from model import Net
 import util
 
-SEED = 42
+RESOURCE_DECREASE_ENABLED = True
+RES_DECREASE_ROUNDS = [10, 20, 30]
 
 class FlowerClient(NumPyClient):
     def __init__(self, trainloader, valloader, ipd_strategy: axl.Player, client_id) -> None:
@@ -56,6 +57,10 @@ class FlowerClient(NumPyClient):
 
         # copy parameters sent by the server into client's local model
         set_params(self.model, parameters)
+        
+        # decrease resource level based on server round
+        if RESOURCE_DECREASE_ENABLED:
+            self.decrease_resources(config)
         
         # enforce cooperate/defect decision here
         match_id, cooperate = self.evaluate_pd(config)
@@ -167,6 +172,37 @@ class FlowerClient(NumPyClient):
         if "strategy" in config.keys():
             retDict["strategy"] = self.ipd_strategy.name
         return retDict
+    
+    def decrease_resources(self, config: Dict[str, Scalar]):
+            """Function that simulates resource scarcity based on the server round."""
+            
+            if not isinstance(self.ipd_strategy, ResourceAwareMemOnePlayer):
+                return
+            
+            #log(INFO, "Checking properties")
+            if "server_round" in config.keys():
+                server_round = config["server_round"]
+            else:
+                return
+            
+            # cast to number
+            srv_rnd = int(server_round)
+            if srv_rnd < RES_DECREASE_ROUNDS[0]:
+                return
+            elif srv_rnd >= RES_DECREASE_ROUNDS[0] and srv_rnd < RES_DECREASE_ROUNDS[1]:
+                if self.ipd_strategy.get_resource_level() != util.ResourceLevel.HIGH.value:
+                    self.ipd_strategy.set_resource_level(util.ResourceLevel.HIGH.value) # set level to 75%
+                    log(INFO, "Resource level of client=%s reduced to HIGH", str(self.client_id))
+            elif srv_rnd >= RES_DECREASE_ROUNDS[1] and srv_rnd < RES_DECREASE_ROUNDS[2]:
+                if self.ipd_strategy.get_resource_level() != util.ResourceLevel.MODERATE.value:
+                    self.ipd_strategy.set_resource_level(util.ResourceLevel.MODERATE.value) # set level to 50%
+                    log(INFO, "Resource level of client=%s reduced to MODERATE", str(self.client_id))
+            else:
+                if self.ipd_strategy.get_resource_level() != util.ResourceLevel.LOW.value:
+                    self.ipd_strategy.set_resource_level(util.ResourceLevel.LOW.value) # set level to 25%
+                    log(INFO, "Resource level of client=%s reduced to LOW", str(self.client_id))
+            
+        
             
 
 def bool_list_to_action_list(bool_list):

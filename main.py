@@ -65,7 +65,7 @@ from axelrod.action import Action
 
 SHOW_LABEL_DISTRUBUTION_OVER_CLIENTS = False
 strategy_mem_depth = 1
-FL_STRATEGY_SUBSAMPLE = 0.75
+FL_STRATEGY_SUBSAMPLE = 1.0
 
 def sow_seed(seed):
     torch.manual_seed(seed)
