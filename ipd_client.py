@@ -40,7 +40,7 @@ import util
 RESOURCE_DECREASE_ENABLED = True
 RES_DECREASE_ROUNDS = [10, 20, 30]
 
-class FlowerClient(NumPyClient):
+class FedT4TClient(NumPyClient):
     def __init__(self, trainloader, valloader, ipd_strategy: axl.Player, client_id) -> None:
         super().__init__()
 

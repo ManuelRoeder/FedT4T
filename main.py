@@ -42,7 +42,7 @@ from PIL import Image
 # FedT4T project imports
 import util
 from model import Net
-from client import FlowerClient
+from ipd_client import FedT4TClient
 from ipd_tournament_server import Ipd_TournamentServer
 from ipd_player import ResourceAwareMemOnePlayer, RandomIPDPlayer
 
@@ -182,7 +182,7 @@ def client_fn(context: Context):
 
     print("Init client(" + str(partition_id) + ") with strategy " + client_ipd_strat.name)
 
-    return FlowerClient(trainloader=trainloader,
+    return FedT4TClient(trainloader=trainloader,
                         valloader=testloader,
                         ipd_strategy=client_ipd_strat,
                         client_id=partition_id).to_client()

@@ -22,6 +22,23 @@ Pillow==11.0.0
 seaborn==0.13.2
 ```
 
+# Framework Usage
+FedT4T currently supports resource-awareness of all strategies from the Axelrod framework that are derived from axelrod.MemoryOne by simply wrapping around the instantiated decision rule:
+```python
+import axelrod
+from ipd_client import FedT4TClient
+from ipd_player import ResourceAwareMemOnePlayer
+
+# initialize the Axelrod strategy
+my_memory_one_strategy = axelrod.FirmButFair()
+# use our wrapper to inject resource-awareness
+my_resource_aware_strategy = ResourceAwareMemOnePlayer(strategy)
+...
+# finaly pass the strategy to our Flower client
+flower_fedt4t_client = FedT4TClient(..., ipd_strategy=my_resource_aware_strategy, ...)
+```
+
+
 # Running the experiments
 
 # Bibliography
