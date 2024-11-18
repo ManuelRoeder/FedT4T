@@ -9,9 +9,20 @@ This code was built on [Flower: A Friendly Federated Learning Framework](https:/
 
 # Dependencies
 
-# Running the experiments
+We've tested the code on Python 3.10.15, Pytorch 2.5.0 and TorchVision 0.20.0 with the following dependencies:
+```
+axelrod==4.13.1
+flwr==1.12.0
+flwr_datasets==0.4.0
+matplotlib==3.9.2
+networkx==3.2.1
+numpy==2.1.3
+pandas==2.2.3
+Pillow==11.0.0
+seaborn==0.13.2
+```
 
-# Running the visualizations
+# Running the experiments
 
 # Bibliography
 If you find our work to be useful in your research, please cite:
