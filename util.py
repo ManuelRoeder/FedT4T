@@ -25,6 +25,7 @@ SOFTWARE.
 import random
 from enum import Enum
 from axelrod.action import Action
+import numpy as np
 
 # global seed
 SEED = 42
@@ -130,8 +131,22 @@ def linear_scaling(res_lvl):
     return e_scaled
 
 
-def hybrid_scaling(res_lvl):
-    pass
+def synergy_threshold_scaling(res_lvl, gamma=6):
+    """
+    Computes the value of the function:
+    f_res(res_lvl) = 0.5 * (1 + tanh(gamma * (res_lvl - E_low)))
+    
+    Parameters:
+    - res_lvl: Input energy or value (array or scalar)
+    - E_low: Lower energy threshold
+    - gamma: Scaling factor controlling the steepness around E_low
+
+    Returns:
+    - The computed result of the function
+    """
+    return 0.5 * (1 + np.tanh(gamma * (res_lvl - ResourceLevel.LOW.value)))
+    
+    
 
 
 def random_action_choice(p: float = 0.5) -> Action:
