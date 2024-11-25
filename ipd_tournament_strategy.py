@@ -66,7 +66,8 @@ class Ipd_TournamentStrategy(FedAvg):
         failures: list[Union[tuple[ClientProxy, FitRes], BaseException]],
     ) -> tuple[Optional[Parameters], dict[str, Scalar]]:
         # Calculate the total number of examples used during training
-        num_examples_total = sum(num_examples for (_, num_examples) in results)
+        num_examples_total = sum(fit_res.num_examples for (_, fit_res) in results)
+        
         # hack to avoid DivisionByZero for all defect rounds
         if num_examples_total > 0:
             return super().aggregate_fit(server_round=server_round,

@@ -131,7 +131,7 @@ def linear_scaling(res_lvl):
     return e_scaled
 
 
-def synergy_threshold_scaling(res_lvl, gamma=6):
+def synergy_threshold_scaling(res_lvl, gamma=8):
     """
     Computes the value of the function:
     f_res(res_lvl) = 0.5 * (1 + tanh(gamma * (res_lvl - E_low)))

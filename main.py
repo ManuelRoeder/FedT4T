@@ -45,6 +45,7 @@ from model import Net
 from ipd_client import FedT4TClient
 from ipd_tournament_server import Ipd_TournamentServer
 from ipd_player import ResourceAwareMemOnePlayer, RandomIPDPlayer
+from ipd_tournament_strategy import Ipd_TournamentStrategy
 
 # Flower_datasets framework imports
 from flwr_datasets import FederatedDataset
@@ -106,7 +107,7 @@ def get_mnist_dataloaders(mnist_dataset, batch_size: int):
 
     # Construct PyTorch dataloaders
     trainloader = DataLoader(mnist_train, batch_size=batch_size, shuffle=True)
-    testloader = DataLoader(mnist_test, batch_size=batch_size*2)
+    testloader = DataLoader(mnist_test, batch_size=batch_size)
     return trainloader, testloader
 
 def train(net, trainloader, optimizer, epochs):
@@ -174,7 +175,7 @@ def client_fn(context: Context):
 
     # Let's use the function defined earlier to construct the dataloaders
     # and apply the dataset transformations
-    trainloader, testloader = get_mnist_dataloaders(partition_train_val, batch_size=10)
+    trainloader, testloader = get_mnist_dataloaders(partition_train_val, batch_size=32)
     
     # Pop last element from list and set seed
     client_ipd_strat = client_strategies[partition_id]
@@ -195,7 +196,7 @@ def server_fn(context: Context):
     global_model_init = ndarrays_to_parameters(ndarrays)
 
     # Define the strategy
-    strategy = FedAvg(
+    strategy = Ipd_TournamentStrategy(
         fraction_fit=FL_STRATEGY_SUBSAMPLE,  # 50% clients sampled each round to do fit()
         fraction_evaluate=0.1,  # 10% clients sample each round to do evaluate()
         #min_fit_clients= 16,
@@ -205,8 +206,9 @@ def server_fn(context: Context):
     
     # calculate the number of rounds based on the subsamüling strategy
     avg = 5
-    num_rounds = get_number_of_round_with_avg_meetups(avg, NUM_PARTITIONS, FL_STRATEGY_SUBSAMPLE)
-    print("Min. number of rounds to have on average " + str(avg) + " matches with " + str(NUM_PARTITIONS) + " participating clients and a subsampling rate of " + str(FL_STRATEGY_SUBSAMPLE) + " is "  +  str(num_rounds))
+    # num_rounds = get_number_of_round_with_avg_meetups(avg, NUM_PARTITIONS, FL_STRATEGY_SUBSAMPLE)
+    num_rounds = 250
+    #print("Min. number of rounds to have on average " + str(avg) + " matches with " + str(NUM_PARTITIONS) + " participating clients and a subsampling rate of " + str(FL_STRATEGY_SUBSAMPLE) + " is "  +  str(num_rounds))
     # Iterated Prisoners Dilemma Tournament Server
     ipd_tournament_server= Ipd_TournamentServer(client_manager=SimpleClientManager(), strategy=strategy, num_rounds=num_rounds)
 
@@ -258,7 +260,7 @@ def get_client_strategies(exp_str, mem_depth=1, resource_awareness=False):
         client_strategies.append(strat1)
         
         strat2 = axl.StochasticWSLS(0)
-        strat2.name = "WinStayLoseShift"
+        strat2.name = "Win Stay - Lose Shift"
         strat2.set_seed(util.SEED)
         client_strategies.append(strat2)
         
@@ -272,13 +274,13 @@ def get_client_strategies(exp_str, mem_depth=1, resource_awareness=False):
         strat4.set_seed(util.SEED)
         client_strategies.append(strat4)
         
-        strat5 = axl.GTFT(p=0.9)
-        strat5.name = "Stochastic T4T"
+        strat5 = axl.GTFT(p=0.33)
+        strat5.name = "Generous TFT"
         strat5.set_seed(util.SEED)
         client_strategies.append(strat5)
         
         strat6 = axl.GTFT(p=0.75)
-        strat6.name = "Forgiving T4T"
+        strat6.name = "Forgiving TFT"
         strat6.set_seed(util.SEED)
         client_strategies.append(strat6)
         
@@ -288,7 +290,7 @@ def get_client_strategies(exp_str, mem_depth=1, resource_awareness=False):
         client_strategies.append(strat7)
         
         strat8 = axl.FirmButFair()
-        strat8.name = "FirmButFair"
+        strat8.name = "Firm But Fair"
         strat8.set_seed(util.SEED)
         client_strategies.append(strat8)
 
@@ -308,8 +310,8 @@ def get_client_strategies(exp_str, mem_depth=1, resource_awareness=False):
             if isinstance(strategy, axl.MemoryOnePlayer):
                 #selected_strategies.append(ResourceAwareMemOnePlayer(copy.deepcopy(strategy), initial_resource_value=util.ResourceLevel.LOW.value))
                 #selected_strategies.append(ResourceAwareMemOnePlayer(copy.deepcopy(strategy), initial_resource_value=util.ResourceLevel.MODERATE.value))
-                selected_strategies.append(ResourceAwareMemOnePlayer(copy.deepcopy(strategy), initial_resource_value=util.ResourceLevel.FULL.value))
-        selected_strategies.append(random_player)
+                selected_strategies.append(ResourceAwareMemOnePlayer(player_instance=copy.deepcopy(strategy), resource_scaling_func=util.synergy_threshold_scaling, initial_resource_value=util.ResourceLevel.FULL.value))
+        #selected_strategies.append(random_player)
         return selected_strategies
                 
     return client_strategies

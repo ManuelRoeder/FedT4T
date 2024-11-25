@@ -29,17 +29,17 @@ def visualize_scaling():
         
         # Highlight areas with different pastel colors
         plt.axvspan(0, E_low, color='lightcoral', alpha=0.2, label="Low Resources")
-        plt.axvspan(E_low, 0.5, color='peachpuff', alpha=0.2, label="Moderate Resources")
+        plt.axvspan(E_low, 0.5, color='peachpuff', alpha=0.6, label="Moderate Resources")
         plt.axvspan(0.5, 0.75, color='lightgreen', alpha=0.2, label="High Resources")
-        plt.axvspan(0.75, 1.0, color='darkseagreen', alpha=0.2, label="Full Resources")
+        plt.axvspan(0.75, 1.0, color='darkseagreen', alpha=0.4, label="Full Resources")
 
         # Add custom x-axis marks without numerical values except for 0 and 1.0
         x_ticks = [0, E_low, 0.5, 0.75, 1.0]
-        x_labels = ["0", r"$E_{\mathrm{Low}}$", r"$E_{\mathrm{Moderate}}$", r"$E_{\mathrm{High}}$", "1.0"]
+        x_labels = ["0", r"$E_{\mathrm{Low}}$", r"$E_{\mathrm{Moderate}}$", r"$E_{\mathrm{High}}$", r"$E_{\mathrm{Max}} = 1.0$"]
         plt.xticks(ticks=x_ticks, labels=x_labels)
 
         # Add labels, legend, and title
-        plt.xlabel(r"$\tilde{E}_i$")
+        plt.xlabel(r"normalized resource factor $\tilde{E}_i$")
         plt.ylabel(r"$f_{\mathrm{res}}(\tilde{E}_i)$")
         plt.title(r"Synergy Threshold Function")
         plt.legend()
@@ -48,7 +48,7 @@ def visualize_scaling():
         # Save the plot to the specified folder
         os.makedirs(output_folder, exist_ok=True)  # Create the folder if it doesn't exist
         save_path = os.path.join(output_folder, file_name)
-        plt.savefig(save_path, bbox_inches='tight')  # Save with tight layout
+        plt.savefig(save_path, bbox_inches='tight', dpi=1200)  # Save with tight layout
         plt.show()
         print(f"Plot saved to: {save_path}")
 

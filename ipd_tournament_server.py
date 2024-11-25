@@ -49,7 +49,7 @@ from flwr.server.server import fit_clients
 from axelrod.action import Action
 
 # FedT4T framework imports
-from ipd_scoring import  plot_average_score_per_strategy_over_rounds, save_strategy_score_differences_matrix2, save_average_score_per_client_over_rounds, save_strategy_total_scores_over_rounds, update_scoreboard, get_ipd_score, format_ranked_payoffs_for_logging, get_clients_score_overview, plot_interaction_graph
+from ipd_scoring import  format_ranked_payoffs_for_logging_2, plot_average_score_per_strategy_over_rounds, plot_cumulative_cooperations_over_rounds_with_focus, save_strategy_total_scores_over_rounds_with_focus, plot_cumulative_cooperations_over_rounds, save_strategy_score_differences_matrix2, save_average_score_per_client_over_rounds, save_strategy_total_scores_over_rounds, update_scoreboard, get_ipd_score, format_ranked_payoffs_for_logging, get_clients_score_overview, plot_interaction_graph
 from util import generate_hash, actions_to_string
 
 USE_CANTOR_PAIRING = False # use cantor hashing or free-text transmission of match id
@@ -141,16 +141,18 @@ class Ipd_TournamentServer(Server):
     def statistics(self, server_round):
          # check some stats
         log(INFO, format_ranked_payoffs_for_logging(self.ipd_scoreboard_dict))
+        #log(INFO, format_ranked_payoffs_for_logging_2(self.ipd_scoreboard_dict))
         
-        if (len(self.ipd_scoreboard_dict) > 0) and (server_round % 4 == 0):
+        if (len(self.ipd_scoreboard_dict) > 0) and (server_round % 10 == 0):
             #plot_unique_strategy_confusion_matrix(self.ipd_scoreboard_dict)
             log(INFO, get_clients_score_overview(self.ipd_scoreboard_dict))
             #plot_strategy_score_differences_matrix(self.ipd_scoreboard_dict)
-            save_strategy_score_differences_matrix2(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_confusion_matrix.png")
-            #save_strategy_total_scores_over_rounds(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_scoring_plot.png")
-            plot_interaction_graph(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_interaction_graph.png" )
+            #save_strategy_score_differences_matrix2(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_confusion_matrix.png")
+            save_strategy_total_scores_over_rounds_with_focus(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_scoring_plot_foc.pdf")
+            plot_cumulative_cooperations_over_rounds_with_focus(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_coop_plot.pdf", vertical_lines=[50, 100, 150], exclude_from_focus=["Res.M1 | Defector"], focus_range=(75, 175))
+            #plot_interaction_graph(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_interaction_graph.png" )
             #save_average_score_per_client_over_rounds(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_scoring_plot_avg.png")
-            plot_average_score_per_strategy_over_rounds(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_scoring_plot_avg.png")
+            #plot_average_score_per_strategy_over_rounds(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_scoring_plot_avg.png")
             #write_unique_matches_to_file(self.ipd_scoreboard_dict)
             
     

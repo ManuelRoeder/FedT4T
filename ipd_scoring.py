@@ -241,6 +241,277 @@ def format_ranked_payoffs_for_logging(ipd_scoreboard_dict):
     
     return formatted_output
 
+def plot_cumulative_cooperations_over_rounds(ipd_scoreboard_dict, plot_directory='plots', filename='cumulative_cooperations_over_rounds.png'):
+    """
+    Plots the cumulative cooperations over server rounds for each strategy and saves the plot to a file.
+
+    Parameters:
+    - plot_directory (str): The directory where the plot image will be saved.
+    - filename (str): The filename for the saved plot image.
+
+    The plot will be saved in the specified directory with the given filename.
+    """
+    # Ensure the plot directory exists
+    if not os.path.exists(plot_directory):
+        os.makedirs(plot_directory)
+
+    # Collect all unique server rounds and strategies
+    all_rounds = set()
+    strategies = set()
+    data_list = []
+
+    # Gather data from ipd_scoreboard_dict
+    for client_id, rounds in ipd_scoreboard_dict.items():
+        for round_data in rounds:
+            server_round = round_data[0]
+            play = round_data[3]  # 'C' or 'D'
+            strategy_label = round_data[6]  # Strategy name
+
+            all_rounds.add(server_round)
+            strategies.add(strategy_label)
+            data_list.append((server_round, strategy_label, play))
+
+    # Sort the server rounds
+    sorted_rounds = sorted(all_rounds)
+
+    # Initialize cumulative cooperations for each strategy
+    cumulative_cooperations_per_strategy = {strategy: [] for strategy in strategies}
+    cumulative_totals = {strategy: 0 for strategy in strategies}
+
+    # Group data by server round
+    data_by_round = defaultdict(list)
+    for server_round, strategy_label, play in data_list:
+        data_by_round[server_round].append((strategy_label, play))
+
+    # Iterate over each server round in order
+    for server_round in sorted_rounds:
+        # Update cumulative totals with cooperations from the current round
+        cooperations_in_round = defaultdict(int)
+        for strategy_label, play in data_by_round.get(server_round, []):
+            if play == True:
+                cooperations_in_round[strategy_label] += 1
+
+        # Update cumulative totals and append to the lists
+        for strategy in strategies:
+            cumulative_totals[strategy] += cooperations_in_round.get(strategy, 0)
+            cumulative_cooperations_per_strategy[strategy].append(cumulative_totals[strategy])
+
+    # Plot the cumulative cooperations over rounds for each strategy
+    plt.figure(figsize=(12, 8))
+    for strategy, cumulative_cooperations in cumulative_cooperations_per_strategy.items():
+        plt.plot(sorted_rounds, cumulative_cooperations, label=strategy)
+
+    plt.title("Cumulative Cooperations Over Server Rounds by Strategy")
+    plt.xlabel("Server Round")
+    plt.ylabel("Cumulative Cooperations")
+    plt.legend(title="Strategy")
+    plt.grid(False)
+    plt.tight_layout()
+
+    # Save the plot to the specified directory with the given filename
+    plot_path = os.path.join(plot_directory, filename)
+    plt.savefig(plot_path)
+    plt.close()  # Close the figure to free memory
+
+    print(f"Plot saved to {plot_path}")
+    
+def plot_cumulative_cooperations_over_rounds_with_focus(
+    ipd_scoreboard_dict,
+    plot_directory='plots',
+    filename='cumulative_cooperations_over_rounds.pdf',
+    focus_range=(50, 100),
+    vertical_lines=None,
+    exclude_from_focus=None
+):
+    """
+    Plots the cumulative cooperations over server rounds for each strategy, with an additional focus subplot zoomed into a specified range of rounds. Includes optional vertical lines and the ability to exclude strategies from the focus area.
+
+    Parameters:
+    - ipd_scoreboard_dict (dict): The scoreboard data to plot.
+    - plot_directory (str): The directory where the plot image will be saved.
+    - filename (str): The filename for the saved plot image.
+    - focus_range (tuple): A tuple (a, b) specifying the range of rounds to focus on in the zoomed subplot.
+    - vertical_lines (list): List of x-axis positions where vertical lines should be drawn.
+    - exclude_from_focus (list): List of strategies to exclude from the focus area.
+    """
+    # Ensure the plot directory exists
+    if not os.path.exists(plot_directory):
+        os.makedirs(plot_directory)
+
+    # Collect all unique server rounds and strategies
+    all_rounds = set()
+    strategies = set()
+    data_list = []
+
+    # Gather data from ipd_scoreboard_dict
+    for client_id, rounds in ipd_scoreboard_dict.items():
+        for round_data in rounds:
+            server_round = round_data[0]
+            play = round_data[3]  # 'C' or 'D'
+            strategy_label = round_data[6]  # Strategy name
+
+            all_rounds.add(server_round)
+            strategies.add(strategy_label)
+            data_list.append((server_round, strategy_label, play))
+
+    # Sort the server rounds
+    sorted_rounds = sorted(all_rounds)
+
+    # Initialize cumulative cooperations for each strategy
+    cumulative_cooperations_per_strategy = {strategy: [] for strategy in strategies}
+    cumulative_totals = {strategy: 0 for strategy in strategies}
+
+    # Group data by server round
+    data_by_round = defaultdict(list)
+    for server_round, strategy_label, play in data_list:
+        data_by_round[server_round].append((strategy_label, play))
+
+    # Iterate over each server round in order
+    for server_round in sorted_rounds:
+        # Update cumulative totals with cooperations from the current round
+        cooperations_in_round = defaultdict(int)
+        for strategy_label, play in data_by_round.get(server_round, []):
+            if play == True:  # Assuming `True` means cooperation
+                cooperations_in_round[strategy_label] += 1
+
+        # Update cumulative totals and append to the lists
+        for strategy in strategies:
+            cumulative_totals[strategy] += cooperations_in_round.get(strategy, 0)
+            cumulative_cooperations_per_strategy[strategy].append(cumulative_totals[strategy])
+
+    # Use a high-contrast color palette
+    contrast_colors = sns.color_palette("Set2", len(strategies))
+    strategy_colors = {strategy: contrast_colors[i] for i, strategy in enumerate(strategies)}
+
+    # Create side-by-side subplots
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6), gridspec_kw={'width_ratios': [3, 1]})
+
+    # Full Plot
+    for strategy, cumulative_cooperations in cumulative_cooperations_per_strategy.items():
+        axes[0].plot(sorted_rounds, cumulative_cooperations, label=strategy, color=strategy_colors[strategy])
+
+    if vertical_lines:
+        for line_x in vertical_lines:
+            axes[0].axvline(x=line_x, color='gray', linestyle='--', linewidth=1)
+
+    axes[0].set_title("Cumulative Cooperations Over Server Rounds by Strategy")
+    axes[0].set_xlabel("Server Round")
+    axes[0].set_ylabel("Cumulative Cooperations")
+    axes[0].legend(title="Strategy", loc="upper left")
+    axes[0].grid(False)
+
+    # Focused Subplot
+    focus_start, focus_end = focus_range
+    exclude_from_focus = exclude_from_focus or []
+
+    # Determine y-axis range for the focus area
+    focus_y_min = float('inf')
+    focus_y_max = float('-inf')
+    for strategy, cumulative_cooperations in cumulative_cooperations_per_strategy.items():
+        if strategy in exclude_from_focus:
+            continue
+        focus_scores = [cumulative_cooperations[i] for i in range(focus_start, focus_end + 1) if i < len(cumulative_cooperations)]
+        if focus_scores:
+            focus_y_min = min(focus_y_min, min(focus_scores))
+            focus_y_max = max(focus_y_max, max(focus_scores))
+
+    if focus_y_min == float('inf') or focus_y_max == float('-inf'):
+        # If no valid data in the focus range, set a default range
+        focus_y_min = 0
+        focus_y_max = 1
+
+    # Add padding to the y-axis limits for better visualization
+    y_padding = (focus_y_max - focus_y_min) * 0.1  # 10% padding
+    focus_y_min -= y_padding
+    focus_y_max += y_padding
+
+    for strategy, cumulative_cooperations in cumulative_cooperations_per_strategy.items():
+        if strategy not in exclude_from_focus:
+            axes[1].plot(sorted_rounds, cumulative_cooperations, label=strategy, color=strategy_colors[strategy])
+
+    if vertical_lines:
+        for line_x in vertical_lines:
+            if focus_start <= line_x <= focus_end:
+                axes[1].axvline(x=line_x, color='gray', linestyle='--', linewidth=1)
+
+    axes[1].set_xlim(focus_start, focus_end)
+    axes[1].set_ylim(focus_y_min, focus_y_max)
+    axes[1].set_title(f"Zoomed View: Rounds {focus_start} to {focus_end}")
+    axes[1].set_xlabel("Server Round")
+    axes[1].set_ylabel("Cumulative Cooperations")
+    axes[1].grid(False)
+
+    plt.tight_layout()
+
+    # Save the plot to the specified directory with the given filename
+    plot_path = os.path.join(plot_directory, filename)
+    plt.savefig(plot_path, format="pdf", bbox_inches="tight")
+    plt.close()  # Close the figure to free memory
+
+    print(f"Plot saved to {plot_path}")
+
+
+def format_ranked_payoffs_for_logging_2(ipd_scoreboard_dict):
+    """
+    Formats the ranked payoffs for logging, excluding the resource level and including the cooperation score in percent.
+
+    Returns:
+    - A list of strings, each representing a client's performance, sorted by total payoff.
+    """
+    from collections import defaultdict
+
+    # Dictionary to hold client statistics
+    client_stats = {}
+
+    # Iterate over each client to collect statistics
+    for client_id, rounds in ipd_scoreboard_dict.items():
+        total_payoff = 0
+        total_cooperations = 0
+        total_games = 0
+        strategy = None
+
+        for round_data in rounds:
+            # round_data format:
+            # (server_round, match_id, opponent_id, play, coplay, payoff, ipd_strategy, res_level)
+            client_action = round_data[3]
+            payoff = round_data[5]
+            client_strategy = round_data[6]
+
+            # Update client strategy (assumed constant)
+            if strategy is None:
+                strategy = client_strategy
+
+            total_payoff += payoff
+            total_games += 1
+            if client_action == 'C':
+                total_cooperations += 1
+
+        # Calculate cooperation score in percent
+        cooperation_score = (total_cooperations / total_games) * 100 if total_games > 0 else 0
+
+        # Store the statistics for the client
+        client_stats[client_id] = {
+            'Strategy': strategy,
+            'Total Payoff': total_payoff,
+            'Total Games': total_games,
+            'Cooperation Score': cooperation_score
+        }
+
+    # Sort clients by total payoff in descending order
+    sorted_clients = sorted(client_stats.items(), key=lambda x: x[1]['Total Payoff'], reverse=True)
+
+    # Format the output for logging
+    output_lines = []
+    for rank, (client_id, stats) in enumerate(sorted_clients, start=1):
+        line = (
+            f"Rank {rank}: Client ID: {client_id}, Strategy: {stats['Strategy']}, "
+            f"Total Payoff: {stats['Total Payoff']}, Total Games: {stats['Total Games']}, "
+            f"Cooperation Score: {stats['Cooperation Score']:.2f}%"
+        )
+        output_lines.append(line)
+
+    return output_lines
+
 
 def plot_unique_strategy_confusion_matrix(ipd_scoreboard_dict):
     """
@@ -676,7 +947,8 @@ def save_strategy_total_scores_over_rounds(ipd_scoreboard_dict, plot_directory='
     for client_id, rounds in ipd_scoreboard_dict.items():
         for round_data in rounds:
             server_round = round_data[0]
-            strategy_label = f"{round_data[6]} | {round_data[7]}"  # Strategy name | Resource level
+            #strategy_label = f"{round_data[6]} | {round_data[7]}"  # Strategy name | Resource level
+            strategy_label = f"{round_data[6]}"  # Strategy name
             payoff = round_data[5]  # Payoff
 
             all_rounds.add(server_round)
@@ -721,14 +993,130 @@ def save_strategy_total_scores_over_rounds(ipd_scoreboard_dict, plot_directory='
     plt.xlabel("Server Round")
     plt.ylabel("Cumulative Total Score")
     plt.legend(title="Strategy")
-    plt.grid(True)
+    plt.grid(False)
     plt.tight_layout()
 
     # Save the plot to the specified directory with the given filename
     plot_path = os.path.join(plot_directory, filename)
     plt.savefig(plot_path)
     plt.close()  # Close the figure to free memory
+    
 
+def save_strategy_total_scores_over_rounds_with_focus(ipd_scoreboard_dict, plot_directory='plots', filename='strategy_total_scores_over_rounds.png', focus_range=(100, 250)):
+    """
+    Plots the cumulative total scores obtained by each strategy over the server rounds and includes a focus subplot
+    zoomed into a specified range of rounds. Saves the plot to a file.
+
+    Parameters:
+    - ipd_scoreboard_dict (dict): The scoreboard data to plot.
+    - plot_directory (str): The directory where the plot image will be saved.
+    - filename (str): The filename for the saved plot image.
+    - focus_range (tuple): A tuple (a, b) specifying the range of rounds to focus on in the zoomed subplot.
+    """
+    # Ensure the plot directory exists
+    if not os.path.exists(plot_directory):
+        os.makedirs(plot_directory)
+
+    # Collect all unique server rounds and strategies
+    all_rounds = set()
+    strategies = set()
+    data_list = []
+
+    # Gather data from ipd_scoreboard_dict
+    for client_id, rounds in ipd_scoreboard_dict.items():
+        for round_data in rounds:
+            server_round = round_data[0]
+            strategy_label = f"{round_data[6]}"  # Strategy name
+            payoff = round_data[5]  # Payoff
+
+            all_rounds.add(server_round)
+            strategies.add(strategy_label)
+            data_list.append((server_round, strategy_label, payoff))
+
+    # Sort the server rounds
+    sorted_rounds = sorted(all_rounds)
+
+    # Initialize cumulative scores and totals for each strategy
+    cumulative_scores_per_strategy = {strategy: [] for strategy in strategies}
+    cumulative_totals = {strategy: 0 for strategy in strategies}
+
+    # Group data by server round
+    data_by_round = defaultdict(list)
+    for server_round, strategy_label, payoff in data_list:
+        data_by_round[server_round].append((strategy_label, payoff))
+
+    # Iterate over each server round in order
+    for server_round in sorted_rounds:
+        # Append current cumulative totals to the lists
+        for strategy in strategies:
+            cumulative_scores_per_strategy[strategy].append(cumulative_totals[strategy])
+
+        # Update cumulative totals with payoffs from the current round
+        for strategy_label, payoff in data_by_round.get(server_round, []):
+            cumulative_totals[strategy_label] += payoff
+
+    # Append the final cumulative totals after the last round
+    for strategy in strategies:
+        cumulative_scores_per_strategy[strategy].append(cumulative_totals[strategy])
+
+    # Extend the rounds list to match the length of cumulative scores lists
+    extended_rounds = sorted_rounds + [sorted_rounds[-1] + 1]
+
+    # Use a high-contrast color palette
+    contrast_colors = sns.color_palette("Set2", len(strategies))
+    strategy_colors = {strategy: contrast_colors[i] for i, strategy in enumerate(strategies)}
+
+    # Create side-by-side subplots
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6), gridspec_kw={'width_ratios': [3, 1]})
+
+    # Full Plot
+    for strategy, cumulative_scores in cumulative_scores_per_strategy.items():
+        axes[0].plot(extended_rounds, cumulative_scores, label=strategy, color=strategy_colors[strategy])
+
+    axes[0].set_title("Cumulative Total Scores of Strategies Over Server Rounds")
+    axes[0].set_xlabel("Server Round")
+    axes[0].set_ylabel("Cumulative Total Score")
+    axes[0].legend(title="Strategy", loc="upper left")
+    axes[0].grid(False)
+
+    # Focused Subplot
+    focus_start, focus_end = focus_range
+
+    # Determine y-axis range for the focus area
+    focus_y_min = float('inf')
+    focus_y_max = float('-inf')
+    for strategy, cumulative_scores in cumulative_scores_per_strategy.items():
+        focus_scores = [cumulative_scores[i] for i in range(focus_start, focus_end + 1) if i < len(cumulative_scores)]
+        if focus_scores:
+            focus_y_min = min(focus_y_min, min(focus_scores))
+            focus_y_max = max(focus_y_max, max(focus_scores))
+
+    if focus_y_min == float('inf') or focus_y_max == float('-inf'):
+        # If no valid data in the focus range, set a default range
+        focus_y_min = 0
+        focus_y_max = 1
+
+    # Add padding to the y-axis limits for better visualization
+    y_padding = (focus_y_max - focus_y_min) * 0.1  # 10% padding
+    focus_y_min -= y_padding
+    focus_y_max += y_padding
+
+    for strategy, cumulative_scores in cumulative_scores_per_strategy.items():
+        axes[1].plot(extended_rounds, cumulative_scores, label=strategy, color=strategy_colors[strategy])
+    
+    axes[1].set_xlim(focus_start, focus_end)
+    axes[1].set_ylim(focus_y_min, focus_y_max)
+    axes[1].set_title(f"Zoomed View: Rounds {focus_start} to {focus_end}")
+    axes[1].set_xlabel("Server Round")
+    axes[1].set_ylabel("Cumulative Total Score")
+    axes[1].grid(False)
+
+    plt.tight_layout()
+
+    # Save the plot to the specified directory with the given filename
+    plot_path = os.path.join(plot_directory, filename)
+    plt.savefig(plot_path, format="pdf", bbox_inches="tight")
+    plt.close()  # Close the figure to free memory
 
 def write_unique_matches_to_file(ipd_scoreboard_dict, filename='matches.txt'):
     """

@@ -38,7 +38,7 @@ from model import Net
 import util
 
 RESOURCE_DECREASE_ENABLED = True
-RES_DECREASE_ROUNDS = [10, 20, 30]
+RES_DECREASE_ROUNDS = [50, 100, 150]
 
 class FedT4TClient(NumPyClient):
     def __init__(self, trainloader, valloader, ipd_strategy: axl.Player, client_id) -> None:
@@ -76,7 +76,7 @@ class FedT4TClient(NumPyClient):
         if cooperate:
             log(INFO, "Client Id %s fit() with strategy %s: COOPERATE action", self.client_id, self.ipd_strategy.name)
             # Define the optimizer
-            optim = torch.optim.SGD(self.model.parameters(), lr=0.01, momentum=0.9)
+            optim = torch.optim.SGD(self.model.parameters(), lr=0.001, momentum=0.9)
 
             # do local training (call same function as centralised setting)
             train(self.model, self.trainloader, optim, epochs=1)
