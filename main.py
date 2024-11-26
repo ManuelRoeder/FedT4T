@@ -207,7 +207,7 @@ def server_fn(context: Context):
     # calculate the number of rounds based on the subsamüling strategy
     avg = 5
     # num_rounds = get_number_of_round_with_avg_meetups(avg, NUM_PARTITIONS, FL_STRATEGY_SUBSAMPLE)
-    num_rounds = 250
+    num_rounds = 251
     #print("Min. number of rounds to have on average " + str(avg) + " matches with " + str(NUM_PARTITIONS) + " participating clients and a subsampling rate of " + str(FL_STRATEGY_SUBSAMPLE) + " is "  +  str(num_rounds))
     # Iterated Prisoners Dilemma Tournament Server
     ipd_tournament_server= Ipd_TournamentServer(client_manager=SimpleClientManager(), strategy=strategy, num_rounds=num_rounds)
@@ -269,8 +269,13 @@ def get_client_strategies(exp_str, mem_depth=1, resource_awareness=False):
         strat3.set_seed(util.SEED)
         client_strategies.append(strat3)
         
-        strat4 = axl.MemoryOnePlayer((0, 0, 0, 0), Action.D)
-        strat4.name = "Defector"
+        #strat4 = axl.MemoryOnePlayer((0, 0, 0, 0), Action.D)
+        #strat4.name = "Defector"
+        #strat4.set_seed(util.SEED)
+       # client_strategies.append(strat4)
+        
+        strat4 = axl.MemoryOnePlayer((0.9, 0.5, 0.5, 0.1), Action.C)
+        strat4.name = "Contributor"
         strat4.set_seed(util.SEED)
         client_strategies.append(strat4)
         

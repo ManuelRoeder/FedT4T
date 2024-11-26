@@ -321,7 +321,8 @@ def plot_cumulative_cooperations_over_rounds_with_focus(
     filename='cumulative_cooperations_over_rounds.pdf',
     focus_range=(50, 100),
     vertical_lines=None,
-    exclude_from_focus=None
+    exclude_from_focus=None,
+    custom_colors=None
 ):
     """
     Plots the cumulative cooperations over server rounds for each strategy, with an additional focus subplot zoomed into a specified range of rounds. Includes optional vertical lines and the ability to exclude strategies from the focus area.
@@ -333,6 +334,7 @@ def plot_cumulative_cooperations_over_rounds_with_focus(
     - focus_range (tuple): A tuple (a, b) specifying the range of rounds to focus on in the zoomed subplot.
     - vertical_lines (list): List of x-axis positions where vertical lines should be drawn.
     - exclude_from_focus (list): List of strategies to exclude from the focus area.
+    - custom_colors (dict): Dictionary mapping strategy names to custom colors.
     """
     # Ensure the plot directory exists
     if not os.path.exists(plot_directory):
@@ -380,15 +382,19 @@ def plot_cumulative_cooperations_over_rounds_with_focus(
             cumulative_cooperations_per_strategy[strategy].append(cumulative_totals[strategy])
 
     # Use a high-contrast color palette
-    contrast_colors = sns.color_palette("Set2", len(strategies))
-    strategy_colors = {strategy: contrast_colors[i] for i, strategy in enumerate(strategies)}
-
+    #contrast_colors = sns.color_palette("Set2", len(strategies))
+    #strategy_colors = {strategy: contrast_colors[i] for i, strategy in enumerate(strategies)}
+    # Use custom colors or fallback to Seaborn color palette
+    if not custom_colors:
+        custom_colors = sns.color_palette("Set2", len(strategies))
+        custom_colors = {strategy: custom_colors[i] for i, strategy in enumerate(strategies)}
+        
     # Create side-by-side subplots
-    fig, axes = plt.subplots(1, 2, figsize=(16, 6), gridspec_kw={'width_ratios': [3, 1]})
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6), gridspec_kw={'width_ratios': [2, 1]})
 
     # Full Plot
     for strategy, cumulative_cooperations in cumulative_cooperations_per_strategy.items():
-        axes[0].plot(sorted_rounds, cumulative_cooperations, label=strategy, color=strategy_colors[strategy])
+        axes[0].plot(sorted_rounds, cumulative_cooperations, label=strategy, color=custom_colors[strategy])
 
     if vertical_lines:
         for line_x in vertical_lines:
@@ -427,7 +433,7 @@ def plot_cumulative_cooperations_over_rounds_with_focus(
 
     for strategy, cumulative_cooperations in cumulative_cooperations_per_strategy.items():
         if strategy not in exclude_from_focus:
-            axes[1].plot(sorted_rounds, cumulative_cooperations, label=strategy, color=strategy_colors[strategy])
+            axes[1].plot(sorted_rounds, cumulative_cooperations, label=strategy, color=custom_colors[strategy])
 
     if vertical_lines:
         for line_x in vertical_lines:

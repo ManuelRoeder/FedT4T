@@ -143,13 +143,23 @@ class Ipd_TournamentServer(Server):
         log(INFO, format_ranked_payoffs_for_logging(self.ipd_scoreboard_dict))
         #log(INFO, format_ranked_payoffs_for_logging_2(self.ipd_scoreboard_dict))
         
-        if (len(self.ipd_scoreboard_dict) > 0) and (server_round % 10 == 0):
+        if (len(self.ipd_scoreboard_dict) > 0) and (server_round % 25 == 0):
             #plot_unique_strategy_confusion_matrix(self.ipd_scoreboard_dict)
             log(INFO, get_clients_score_overview(self.ipd_scoreboard_dict))
             #plot_strategy_score_differences_matrix(self.ipd_scoreboard_dict)
             #save_strategy_score_differences_matrix2(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_confusion_matrix.png")
+            custom_colors = {
+                "Res.M1 | Forgiving TFT": "#17becf",  # Teal
+                "Res.M1 | Firm But Fair": "#9467bd",  # Purple
+                "Res.M1 | Win Stay - Lose Shift": "#1f77b4",  # Blue
+                "Res.M1 | Generous TFT": "#e377c2",  # Pink
+                "Res.M1 | Tit for Tat": "#ff7f0e",  # Orange
+                "Res.M1 | Cooperator": "#2ca02c",  # Green
+                "Res.M1 | Grim": "#d62728",  # Red
+                "Res.M1 | Contributor": "#bcbd22",  # Yellow-Green
+            }
             save_strategy_total_scores_over_rounds_with_focus(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_scoring_plot_foc.pdf")
-            plot_cumulative_cooperations_over_rounds_with_focus(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_coop_plot.pdf", vertical_lines=[50, 100, 150], exclude_from_focus=["Res.M1 | Defector"], focus_range=(75, 175))
+            plot_cumulative_cooperations_over_rounds_with_focus(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_coop_plot.pdf", vertical_lines=[50, 100, 150], exclude_from_focus=["Res.M1 | Defector"], focus_range=(140, 250), custom_colors=custom_colors)
             #plot_interaction_graph(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_interaction_graph.png" )
             #save_average_score_per_client_over_rounds(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_scoring_plot_avg.png")
             #plot_average_score_per_strategy_over_rounds(self.ipd_scoreboard_dict, plot_directory="plots", filename= str(server_round) + "_scoring_plot_avg.png")
